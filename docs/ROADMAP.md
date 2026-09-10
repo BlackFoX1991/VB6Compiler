@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-09 auf `main` / `d2da853` mit nicht committeten Änderungen, Lauf `20260909T202600Z-4da477c4`:
+Messung vom 2026-09-10 auf `main` / `ef6ca10` mit nicht committeten Änderungen, Lauf `20260910T070356Z-603e38c1`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1853 Fälle: 1853 bestanden, 0 fehlgeschlagen, 0 übersprungen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1858 Fälle: 1858 bestanden, 0 fehlgeschlagen, 0 übersprungen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | nicht ausgeführt | Ein fehlender nativer Lauf ist kein bestandener; das Gate bleibt offen |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **173 Erwartungen**, davon **162 implemented**, **0 partial** und **11 planned**;
-**162/173 documented-verified**, 11 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **173 Erwartungen**, davon **163 implemented**, **0 partial** und **10 planned**;
+**163/173 documented-verified**, 10 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -383,9 +383,8 @@ Die DISPIDs stimmen zwischen Bibliothek und laufendem Server überein — dazu k
 Binary Compatibility, dass sie das vorher **nie** taten. Gemessen wird an der zurückgelesenen
 Bibliothek und, für die Aufrufbarkeit, an einem Fremdclient im eigenen Prozess.
 
-Was der Aufruf eines **UDT-Wertes** verlangt, ist danach als eigener Vertrag abgetrennt:
-`managed-r5-record-dispatch`. Der Grund steht dort und ist gemessen — die AutoDual-Klassen-
-schnittstelle der CLR und eine VB6-geformte Typbibliothek schließen einander aus.
+Was der Aufruf eines **UDT-Wertes** verlangt, war danach als eigener Vertrag abgetrennt:
+`managed-r5-record-dispatch`. Er ist inzwischen geschlossen und steht als Teilvertrag von R5 unten.
 
 | Karte | Nachweis |
 | --- | --- |
@@ -393,6 +392,37 @@ schnittstelle der CLR und eine VB6-geformte Typbibliothek schließen einander au
 | `managed-r4-binary-compatibility` | `BinaryCompatibilityTests`, `BinaryCompatibilityClientTests` |
 | `managed-r4-automation-layouts` | `AutomationLayoutTests` |
 | `managed-r4-typelib-metadata` | `TypeLibraryMemberSurfaceTests`, `TypeLibraryWriterTests` |
+
+### Abgenommen aus R5: die eigene Dispatch-Fläche
+
+`managed-r5-record-dispatch` ist geschlossen, bevor die übrige Etappe beginnt — er stammt aus R4
+und hing dort nur an einem einzigen Punkt.
+
+Der Weg dorthin war zuerst eine Messung, welcher Haken überhaupt greift: Ein verwaltetes Interface
+mit `IID_IDispatch` gibt die CLR **nicht** heraus (`E_NOINTERFACE`), `ICustomQueryInterface` wird
+dagegen für genau diese IID gefragt. Die eigene Fläche hängt deshalb dort, baut ihre vtable aus
+Funktionszeigern und beantwortet `GetIDsOfNames` und `Invoke` selbst; `VBComEventSource` — ohnehin
+Basis jeder COM-sichtbaren Klasse — trägt sie. Damit gehören DISPIDs, Namen und Marshalling dem
+Compiler, und die Typbibliothek beschreibt genau das, was der Server tut.
+
+Ein Record reist als echtes `VT_RECORD` mit einer **selbst implementierten** `IRecordInfo`. Deshalb
+muss nichts registriert sein, und der Client liest die Felder mit demselben Interface, mit dem ein
+VB6- oder C++-Client jeden UDT liest. Gemessen in beide Richtungen an einem Fremdclient im eigenen
+Prozess: heraus `vt=36 name=TPunkt size=8 X=3,Y=4`; hinein ein vom Client über dieselbe
+`IRecordInfo` gebauter Record mit 11 und 22, den der Server zu 33 addiert — ein falsches Layout
+käme dort als falsche Zahl heraus, nicht als Fehlercode. Freigegeben wird über `VariantClear`, das
+durch `RecordDestroy` des Servers läuft.
+
+Zwei Befunde am Rand, beide teuer, wenn man sie übersieht: `ClassInterface` bleibt `AutoDual`, weil
+die .NET-Klassenfabrik sonst `IID_IDispatch` bei der Erzeugung gar nicht mehr herausgibt und damit
+jeder spät gebundene Client bricht — die eigene Fläche gewinnt trotzdem, über beide
+Aktivierungswege gemessen. Und ByRef-Argumente müssen von Hand zurückgeschrieben werden: Das hatte
+vorher die CLR getan, und ohne das gelingt der Aufruf, während die Zuweisung verschwindet.
+
+| Karte | Nachweis |
+| --- | --- |
+| `managed-r5-record-dispatch` | `ComDispatchSurfaceTests`, `RecordDispatchClientTests` |
+
 
 ## Aktive Restliste
 
@@ -416,7 +446,6 @@ Die Grafikimplementierung arbeitet derzeit auf verwalteten Bitmaps. Entscheidend
 
 | Karte | Ziel und Abnahme |
 | --- | --- |
-| `managed-r5-record-dispatch` | **UDT-Werte über eine eigene Dispatch-Fläche tragen:** Ein Fremdclient ruft ein Mitglied mit UDT-Rückgabe und mit UDT-Parameter auf und liest die Feldwerte; Besitz und Layout stimmen in beide Richtungen. Verlangt eigenes `IDispatch` für die erzeugten Klassen — die AutoDual-Klassenschnittstelle der CLR und eine VB6-geformte Typbibliothek schließen einander aus (gemessen 2026-09-09). |
 | `managed-r5-stream-persistence` | **Stream-basierte Control-Persistenz:** IPersistStreamInit-Zustand laden/sichern; InitNew, fehlende Schnittstelle und beschädigten Stream mit einer passenden Control-Fixture prüfen. |
 | `managed-r5-usercontrol-ole` | **Generierte UserControls im Fremdcontainer:** Kompilierte ctl-Komponente unabhängig aktivieren, zeichnen, speichern, laden und freigeben; OLE View/In-Place, Ambient Properties und Events prüfen. |
 | `managed-r5-property-pages` | **PropertyPage-COM-Vertrag:** Kompilierte pag-Artefakte im vorhandenen externen Container ausführen; ApplyChanges erreicht das Control und Persistenz, eigene Designer-UI bleibt späteres Produkt. |

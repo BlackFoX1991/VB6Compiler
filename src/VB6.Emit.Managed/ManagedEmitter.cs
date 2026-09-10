@@ -6129,6 +6129,9 @@ public sealed class ManagedEmitter
             }
             else
             {
+                // Keine Klassenschnittstelle der CLR: Die Klasse antwortet auf IDispatch mit der
+                // eigenen Flaeche der Runtime, und AutoDual daneben waere ein zweiter, anders
+                // nummerierter Weg auf dieselben Mitglieder.
                 _metadata.AddCustomAttribute(
                     typeHandle,
                     GetAttributeConstructor(typeof(ClassInterfaceAttribute), typeof(ClassInterfaceType)),

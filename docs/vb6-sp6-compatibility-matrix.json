@@ -3034,16 +3034,18 @@
       "dependsOn": [
         "managed-r4-typelib-metadata"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "UDT-Werte über eine eigene Dispatch-Fläche tragen",
       "expected": {
         "acceptance": "Ein Fremdclient ruft ein Mitglied mit UDT-Rückgabe und mit UDT-Parameter auf und liest die Feldwerte; Besitz und Layout stimmen in beide Richtungen."
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.Compiler.Tests/TypeLibraryMemberSurfaceTests.cs"
+        "tests/VB6.Compiler.Tests/TypeLibraryMemberSurfaceTests.cs",
+        "tests/VB6.Runtime.Tests/ComDispatchSurfaceTests.cs",
+        "tests/VB6.Compiler.Cli.Tests/RecordDispatchClientTests.cs"
       ],
-      "notes": "Abgetrennt am 2026-09-09 aus managed-r4-typelib-metadata, nachdem gemessen war, dass der beschreibende Teil vollstaendig ist und der Aufruf trotzdem nicht geht. Die Bibliothek traegt den Record als TKIND_RECORD, das Mitglied nennt ihn als VT_USERDEFINED, die Assembly traegt ihn als oeffentlichen ComVisible-Typ mit GUID, und das Manifest fuehrt die Bibliothek. Der Aufruf endet dennoch in 0x80131515 -- auch mit per RegisterTypeLibForUser registrierter Bibliothek, auch mit registrierter Klasse, auch ueber einen Client, der den Aktivierungskontext des Manifests aktiviert und per CoCreateInstance erzeugt (ein Long kommt auf demselben Weg als vt=3 zurueck). Der Grund ist strukturell: Gibt man der Assembly ein GuidAttribute auf die geschriebene Bibliothek, damit die CLR sie findet, behandelt sie diese als die exportierte Bibliothek der Assembly und sucht ihre Typen unter den CLR-Namen (__vb6_class_Geber) statt unter den VB6-Namen (Geber, _Geber) -- danach scheitert selbst das Long-Mitglied mit TYPE_E_ELEMENTNOTFOUND. Die AutoDual-Klassenschnittstelle der CLR und eine VB6-geformte Typbibliothek schliessen einander an dieser Stelle aus. Der Weg ist deshalb, IDispatch fuer die erzeugten Klassen selbst zu implementieren (ClassInterfaceType.None plus eigene GetIDsOfNames/Invoke ueber VBDynamicDispatch, IRecordInfo aus der eigenen Bibliothek). Das ist zugleich der Schnitt, der DISPIDs, Signaturen und Marshalling vollstaendig in die Hand des Compilers legt -- und er beruehrt jede COM-gehostete Klasse, weshalb er nicht als Anhaengsel einer Metadatenkarte laufen darf.",
+      "notes": "Abgetrennt am 2026-09-09 aus managed-r4-typelib-metadata, nachdem gemessen war, dass der beschreibende Teil vollstaendig ist und der Aufruf trotzdem nicht geht. Die Bibliothek traegt den Record als TKIND_RECORD, das Mitglied nennt ihn als VT_USERDEFINED, die Assembly traegt ihn als oeffentlichen ComVisible-Typ mit GUID, und das Manifest fuehrt die Bibliothek. Der Aufruf endet dennoch in 0x80131515 -- auch mit per RegisterTypeLibForUser registrierter Bibliothek, auch mit registrierter Klasse, auch ueber einen Client, der den Aktivierungskontext des Manifests aktiviert und per CoCreateInstance erzeugt (ein Long kommt auf demselben Weg als vt=3 zurueck). Der Grund ist strukturell: Gibt man der Assembly ein GuidAttribute auf die geschriebene Bibliothek, damit die CLR sie findet, behandelt sie diese als die exportierte Bibliothek der Assembly und sucht ihre Typen unter den CLR-Namen (__vb6_class_Geber) statt unter den VB6-Namen (Geber, _Geber) -- danach scheitert selbst das Long-Mitglied mit TYPE_E_ELEMENTNOTFOUND. Die AutoDual-Klassenschnittstelle der CLR und eine VB6-geformte Typbibliothek schliessen einander an dieser Stelle aus. Der Weg ist deshalb, IDispatch fuer die erzeugten Klassen selbst zu implementieren (ClassInterfaceType.None plus eigene GetIDsOfNames/Invoke ueber VBDynamicDispatch, IRecordInfo aus der eigenen Bibliothek). Das ist zugleich der Schnitt, der DISPIDs, Signaturen und Marshalling vollstaendig in die Hand des Compilers legt -- und er beruehrt jede COM-gehostete Klasse, weshalb er nicht als Anhaengsel einer Metadatenkarte laufen darf. Abgeschlossen am 2026-09-10, genau so gebaut. Der Weg dorthin war zuerst zu messen, welcher Haken ueberhaupt greift: Ein verwaltetes Interface mit IID_IDispatch gibt die CLR nicht heraus (E_NOINTERFACE), ICustomQueryInterface wird dagegen fuer genau diese IID gefragt. Die Flaeche haengt deshalb dort, baut ihre vtable aus Funktionszeigern und beantwortet GetIDsOfNames und Invoke selbst; VBComEventSource, ohnehin Basis jeder COM-sichtbaren Klasse, traegt sie. Records reisen als echtes VT_RECORD mit einer selbst implementierten IRecordInfo -- damit muss nichts registriert sein, und der Client liest die Felder mit demselben Interface, mit dem ein VB6- oder C++-Client einen UDT liest. Gemessen in beide Richtungen an einem Fremdclient im eigenen Prozess: heraus vt=36, name=TPunkt, size=8, X=3, Y=4; hinein ein vom Client ueber dieselbe IRecordInfo gebauter Record mit 11 und 22, den der Server zu 33 addiert -- ein falsches Layout kaeme dort als falsche Zahl heraus, nicht als Fehlercode. Freigegeben wird ueber VariantClear, das durch RecordDestroy des Servers laeuft. Zwei Befunde am Rand: ClassInterface bleibt AutoDual, weil die .NET-Klassenfabrik sonst IID_IDispatch bei der Erzeugung gar nicht mehr herausgibt und jeder spaet gebundene Client bricht -- die eigene Flaeche gewinnt trotzdem, gemessen ueber beide Aktivierungswege. Und ByRef-Argumente muessen von Hand zurueckgeschrieben werden: Das hatte vorher die CLR getan, und ohne das gelingt ein Aufruf, waehrend die Zuweisung verschwindet.",
       "title": "UDT-Werte über eine eigene Dispatch-Fläche tragen"
     },
     {
@@ -3577,8 +3579,8 @@
         "bitness": "x86 comhost for ActiveX-DLL-compatible output",
         "com": "IUnknown/IDispatch, connection points and instancing are explicit"
       },
-      "implementation": "partial",
-      "verification": "not-yet-verified",
+      "implementation": "implemented",
+      "verification": "documented-verified",
       "tests": [
         "tests/VB6.Compiler.Tests/ManagedComRegistrationTests.cs",
         "tests/VB6.ComActivationProbe",
@@ -3591,7 +3593,7 @@
         "tests/VB6.Runtime.Tests/ComEventSourceRuntimeTests.cs",
         "tests/VB6.Compiler.Cli.Tests/EventSourceClientTests.cs"
       ],
-      "gap": "managed-r5-record-dispatch: UDT-Werte über eine eigene Dispatch-Fläche tragen"
+      "gap": null
     },
     {
       "id": "forms-lifecycle-and-intrinsic-controls",

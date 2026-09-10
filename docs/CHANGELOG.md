@@ -8836,3 +8836,45 @@ Das trifft vor allem CI: Dort fehlen MSCOMCTL, die RichTextBox-Typbibliothek und
 VB6-Redistributables, und seit dieser Runde auch die frisch dazugekommenen R4-Abnahmen, die einen
 x86-Host, `stdole2.tlb` oder einen registrierten Dienst brauchen. Der nächste CI-Lauf zeigt zum
 ersten Mal, wie viel dort tatsächlich übersprungen wird, statt es grün zu verschweigen.
+
+## Die eigene Dispatch-Fläche — und der Record, der endlich hinüberkommt
+
+`managed-r5-record-dispatch` ist geschlossen, und damit die Frage, an der
+`managed-r4-typelib-metadata` zuletzt hing.
+
+### Welcher Haken greift
+
+Zuerst gemessen, nicht gebaut. Ein verwaltetes Interface mit `IID_IDispatch` zu deklarieren und zu
+implementieren scheitert: Die CLR gibt es nicht heraus, `QueryInterface` antwortet `E_NOINTERFACE`.
+`ICustomQueryInterface` dagegen **wird** für genau diese IID gefragt — das war die entscheidende
+Messung, und der ganze Rest hängt daran.
+
+Die Fläche baut ihre vtable deshalb aus Funktionszeigern und beantwortet `GetIDsOfNames` und
+`Invoke` selbst. `VBComEventSource` — ohnehin Basis jeder COM-sichtbaren Klasse — trägt sie. Die
+DISPIDs sind die, die der Emitter gestempelt und die Bibliothek veröffentlicht hat; Namen sind die
+VB6-Namen. Damit gehören DISPIDs, Namen und Marshalling dem Compiler, und die Typbibliothek
+beschreibt genau das, was der Server tut.
+
+### Der Record
+
+Er reist als echtes `VT_RECORD` mit einer **selbst implementierten** `IRecordInfo` — alle neunzehn
+Slots, weil ein Client jeden davon aufrufen darf und ein leerer Slot ein Absturz statt eines
+Fehlercodes wäre. Deshalb muss nichts registriert sein, und der Client liest die Felder mit
+demselben Interface, mit dem ein VB6- oder C++-Client jeden UDT liest.
+
+Gemessen in beide Richtungen an einem Fremdclient im eigenen Prozess: heraus
+`vt=36 name=TPunkt size=8 X=3,Y=4`; hinein ein vom Client über dieselbe `IRecordInfo` gebauter
+Record mit 11 und 22, den der Server zu 33 addiert. Ein falsches Layout käme dort als falsche Zahl
+heraus, nicht als Fehlercode — das ist der Unterschied zwischen „der Aufruf geht" und „der Wert
+stimmt". Freigegeben wird über `VariantClear`, das durch `RecordDestroy` des Servers läuft.
+
+### Zwei teure Kleinigkeiten
+
+`ClassInterface` bleibt **`AutoDual`**. Auf `None` gestellt gibt die .NET-Klassenfabrik
+`IID_IDispatch` bei der Erzeugung gar nicht mehr heraus — `E_NOINTERFACE` —, und damit bricht jeder
+spät gebundene Client. Die eigene Fläche gewinnt trotzdem: über `IUnknown` mit anschließendem
+`QueryInterface` **und** direkt als `IDispatch` erzeugt, beide gemessen, beide landen bei uns.
+
+Und ByRef-Argumente muss die Fläche selbst zurückschreiben. Das hatte vorher die CLR getan; ohne
+das gelingt der Aufruf, während die Zuweisung verschwindet. Aufgefallen ist es an der
+registrierungsfreien Aktivierungssonde, die `41` las, wo sie `42` bestellt hatte.
