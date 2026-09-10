@@ -612,6 +612,64 @@ public sealed class FileRuntimeTests
         });
     }
 
+    /// <summary>
+    /// A <c>String * n</c> is the third shape beside the two above, and it ignores the mode that
+    /// separates them: measured against VB6 SP6 on 2026-09-10, a <c>String * 6</c> holding
+    /// <c>"AB"</c> writes <c>41 42 20 20 20 20</c> in Binary **and** in Random mode. No descriptor,
+    /// exactly the declared width, padded with spaces.
+    /// </summary>
+    [TestMethod]
+    public void PutFixedString_WritesTheDeclaredWidthInBothModes()
+    {
+        var expected = new byte[] { 0x41, 0x42, 0x20, 0x20, 0x20, 0x20 };
+
+        WithTemporaryFile(path =>
+        {
+            VBFiles.OpenBinary(1, path);
+            VBFiles.PutFixedString(1, 1L, "AB", 6, VBCompatibilityProfile.VB6Sp6);
+            VBFiles.Close(1);
+            CollectionAssert.AreEqual(expected, File.ReadAllBytes(path));
+
+            VBFiles.OpenBinary(1, path);
+            Assert.AreEqual("AB    ", VBFiles.GetFixedString(1, 1L, 6, VBCompatibilityProfile.VB6Sp6));
+            VBFiles.Close(1);
+        });
+
+        WithTemporaryFile(path =>
+        {
+            VBFiles.OpenRandom(1, path, 6);
+            VBFiles.PutFixedString(1, 1L, "AB", 6, VBCompatibilityProfile.VB6Sp6);
+            VBFiles.Close(1);
+            CollectionAssert.AreEqual(
+                expected,
+                File.ReadAllBytes(path),
+                "Der Deskriptor gehoert dem String variabler Laenge, nicht dem festen.");
+
+            VBFiles.OpenRandom(1, path, 6);
+            Assert.AreEqual("AB    ", VBFiles.GetFixedString(1, 1L, 6, VBCompatibilityProfile.VB6Sp6));
+            VBFiles.Close(1);
+        });
+    }
+
+    /// <summary>
+    /// The declared width truncates as well as it pads -- the same rule the variable itself
+    /// follows, and the reason a fixed string never needs to be asked how long it is.
+    /// </summary>
+    [TestMethod]
+    public void PutFixedString_TruncatesAValueWiderThanItsDeclaration()
+    {
+        WithTemporaryFile(path =>
+        {
+            VBFiles.OpenBinary(1, path);
+            VBFiles.PutFixedString(1, 1L, "ABCDEFGH", 6, VBCompatibilityProfile.VB6Sp6);
+            VBFiles.Close(1);
+
+            CollectionAssert.AreEqual(
+                new byte[] { 0x41, 0x42, 0x43, 0x44, 0x45, 0x46 },
+                File.ReadAllBytes(path));
+        });
+    }
+
     [TestMethod]
     public void PutString_RejectsValuesThatDoNotFitTheVb6LengthPrefix()
     {
