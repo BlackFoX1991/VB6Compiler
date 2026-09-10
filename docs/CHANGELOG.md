@@ -8878,3 +8878,38 @@ spät gebundene Client. Die eigene Fläche gewinnt trotzdem: über `IUnknown` mi
 Und ByRef-Argumente muss die Fläche selbst zurückschreiben. Das hatte vorher die CLR getan; ohne
 das gelingt der Aufruf, während die Zuweisung verschwindet. Aufgefallen ist es an der
 registrierungsfreien Aktivierungssonde, die `41` las, wo sie `42` bestellt hatte.
+
+## Stream-Persistenz: die Container-Seite steht, der Zeitpunkt fehlt
+
+`managed-r5-stream-persistence` ist begonnen, und vier Messungen machen die Karte erst scharf.
+
+**Erstens**, was die Controls überhaupt anbieten: Alle elf registrierten Stock-Controls bieten
+`IPersistStreamInit`, **keines** das einfache `IPersistStream` — die beiden sind getrennte
+Schnittstellen, die Init-Variante leitet nicht von der anderen ab —, und jedes antwortet auf
+`GetSizeMax` mit `E_NOTIMPL`. Ein Container, der daraus einen Puffer bemisst, übergibt dem Control
+nichts; der Strom muss mitwachsen.
+
+**Zweitens**, die Fixture: Ein Control ohne Container nimmt überhaupt keine Eigenschaften an. `Min`,
+`Max` und `Value` auf einem blanken Slider zu setzen und zurückzulesen ergibt Nullen — und der Strom,
+den es schreibt, trägt diese Nullen getreu. Eine Fixture ohne Site und Fenster beweist also gar
+nichts; der Zustand muss über den Host gesetzt werden.
+
+**Drittens**, was jetzt steht: `VBComStreamPersistence` reicht dem Control einen eigenen `IStream`
+über Speicher. Der ist bewusst kein `MemoryStream` mit angeschraubten COM-Methoden — `Read` und
+`Write` melden ihre Zahlen über einen Zeiger, der null sein darf, und alles, was diese Persistenz
+nicht braucht, antwortet `E_NOTIMPL` statt so zu tun. Gemessen: Ein Slider schreibt 116 Bytes, zwei
+verschiedene Zustände schreiben verschiedene Ströme, derselbe Zustand zweimal denselben, `InitNew`
+läuft für einen leeren Block, ein Control ohne die Schnittstelle ist kein Fehler, ein zerstörter
+Block lässt das Control ansprechbar, und `IsDirty` steht nach `Save` mit `clearDirty` wieder auf
+sauber — wobei `S_OK` schmutzig heißt und `S_FALSE` sauber, die umgekehrte Leserichtung.
+
+**Viertens**, und deshalb bleibt die Karte offen: Ein spätes `Load` wird vom Control **angenommen und
+ignoriert**. Ein bereits erzeugtes OCX behält seine Vorgaben. Gemessen über drei Wege — die eigene
+Schnittstelle, `AxHost.OcxState` eines lebenden Controls, und ein selbst gebauter `AxHost.State` aus
+denselben Bytes. Nebenbefund: AxHost nimmt für dieses Control nur Speichertyp 1 (Stream) an und
+weist 0, 2 und 3 mit „anderer Speichertyp" zurück — dieselbe Aussage wie die Schnittstellenmessung,
+von der WinForms-Seite aus.
+
+Der fehlende Teil ist damit nicht das Marshalling, sondern der **Zeitpunkt**: Ein Strom gehört dem
+Control gegeben, *bevor* es erzeugt wird, und `WinFormsHost.CreateControl` erzeugt das OCX sofort.
+Der nächste Schritt ist ein Erzeugungspfad, der den persistierten Block vorher entgegennimmt.
