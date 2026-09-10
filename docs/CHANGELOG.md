@@ -8913,3 +8913,41 @@ von der WinForms-Seite aus.
 Der fehlende Teil ist damit nicht das Marshalling, sondern der **Zeitpunkt**: Ein Strom gehört dem
 Control gegeben, *bevor* es erzeugt wird, und `WinFormsHost.CreateControl` erzeugt das OCX sofort.
 Der nächste Schritt ist ein Erzeugungspfad, der den persistierten Block vorher entgegennimmt.
+
+## Der Zeitpunkt war das Fehlende — `managed-r5-stream-persistence` geschlossen
+
+Der offene Rest der Karte war eine einzige Frage: Wohin gehört ein persistierter Block, wenn das
+Control ihn nach seiner Erzeugung nachweislich annimmt und ignoriert? Antwort: an die einzige
+Stelle, an die ein WinForms-Container früh genug herankommt — `AxHost.OcxState`. Der Container
+sagt den Zustand also nicht dem Control, sondern seinem Wrapper, und der gibt ihn beim Erzeugen
+weiter.
+
+Die Übergabe hat zwei Fallen, und beide melden **nichts**.
+
+Die erste ist der Puffer. `AxHost.State` liest ihn längenpräfixiert: eine `Int32`-Länge, dann die
+Bytes. Ein roher `IPersistStreamInit`-Strom verliert dadurch seine ersten vier Bytes an eine
+Längenangabe, die er nie war — und weil die dann meist klein ausfällt, steht das Control danach
+mit seinen Vorgaben da. Genau das war die frühere Messung „ergibt Nullen", die wie eine Grenze des
+Formats aussah und keine war.
+
+Die zweite ist der Speichertyp. Der öffentliche Konstruktor nimmt die **alte** AxHost-Konstante und
+verschiebt sie um eins auf `AxHost.StorageType`, wo `Unknown` inzwischen die Null belegt. Wer die
+`2` des Enums für `StreamInit` übergibt, wählt damit `Storage` — und ein Control, das Strombytes
+als Storage lesen soll, reißt den Prozess ab, ohne dass ein HRESULT irgendwo auftaucht. Der
+richtige Wert ist `1`. Das korrigiert nebenbei den Nebenbefund von gestern: Nicht „nur Speichertyp
+1 (Stream) wird angenommen" — die 1 *ist* `StreamInit`, und die anderen Werte wurden zu Recht
+abgewiesen. Gefunden wurde beides nicht durch Lesen, sondern durch Auslesen: die privaten Felder
+eines echten `OcxState` neben die eines selbst gebauten gelegt und verglichen.
+
+`WinFormsHost.TrySetPersistedState` legt den Block deshalb als `OcxState` ab und **lehnt ein
+bereits erzeugtes Control mit `False` ab**, statt den Ladeaufruf ins Leere laufen zu lassen. Ein
+stilles `True` wäre hier der schlechtere Ausgang: Der Aufrufer glaubte zu laden, und das Control
+stünde auf seinen Vorgaben. `TryGetPersistedState` ist die Gegenrichtung.
+
+Abgenommen wird über einen Rundlauf durch zwei Hosts, nicht über eine Prüfung des Blocks — die
+Bytes gehören dem Control. `Min=5`, `Max=55`, `Value=42` kommen im zweiten Slider an, und was der
+danach selbst schreibt, ist **bytegleich** mit dem geladenen Block. Der letzte Vergleich ist der
+wichtigere von beiden: Die drei Namen decken nur ab, wonach der Test fragt; ein Zustand, der nur
+zur Hälfte ankäme, fällt erst dort auf.
+
+Nativer Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` unter `TargetPlatform=x86`: 89 von 89, 0 übersprungen.

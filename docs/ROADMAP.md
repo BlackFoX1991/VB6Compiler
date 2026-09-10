@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-10 auf `main` / `ef6ca10` mit nicht committeten Änderungen, Lauf `20260910T070356Z-603e38c1`:
+Messung vom 2026-09-10 auf `main` / `931fa56` mit nicht committeten Änderungen, Lauf `20260910T080142Z-f0dca120`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1858 Fälle: 1858 bestanden, 0 fehlgeschlagen, 0 übersprungen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1865 Fälle: 1865 bestanden, 0 fehlgeschlagen, 0 übersprungen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | nicht ausgeführt | Ein fehlender nativer Lauf ist kein bestandener; das Gate bleibt offen |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
@@ -41,8 +41,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **173 Erwartungen**, davon **163 implemented**, **0 partial** und **10 planned**;
-**163/173 documented-verified**, 10 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **173 Erwartungen**, davon **164 implemented**, **0 partial** und **9 planned**;
+**164/173 documented-verified**, 9 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -423,6 +423,34 @@ vorher die CLR getan, und ohne das gelingt der Aufruf, während die Zuweisung ve
 | --- | --- |
 | `managed-r5-record-dispatch` | `ComDispatchSurfaceTests`, `RecordDispatchClientTests` |
 
+### Abgenommen aus R5: die stromgespeicherte Designer-Fläche
+
+Ein Control entscheidet selbst, welche Persistenz es benutzt, und sagt es über die Schnittstelle,
+die es anbietet. Gemessen an den elf registrierten Stock-Controls bietet **jedes**
+`IPersistStreamInit` und **keines** das einfache `IPersistStream`; die beiden sind getrennte
+Schnittstellen, die Init-Variante leitet nicht von der anderen ab. Jedes antwortet außerdem auf
+`GetSizeMax` mit `E_NOTIMPL` — ein Container, der daraus einen Puffer bemisst, übergibt nichts,
+also wächst der Strom mit.
+
+Die Bytes bleiben dem Container undurchsichtig; das ist der Vertrag, nicht seine Schwäche. Die
+Abnahme ist deshalb ein Rundlauf durch ein **zweites** Control, nicht eine Prüfung des Blocks:
+`Min=5`, `Max=55`, `Value=42` kommen an, und was das Zielcontrol danach selbst schreibt, ist
+bytegleich mit dem geladenen Block.
+
+Entschieden hat den Schnitt der Zeitpunkt. Ein spätes `Load` wird **angenommen und ignoriert** —
+ein erzeugtes OCX behält seine Vorgaben, ohne dass irgendetwas meldet. Der Block gehört dem
+Control gegeben, bevor es entsteht, und die einzige Stelle, an die ein Container ihn so früh legen
+kann, ist `AxHost.OcxState`. Dort sitzen zwei stumme Fallen: Der Puffer wird längenpräfixiert
+gelesen (`Int32`-Länge, dann die Bytes), und der Speichertyp des öffentlichen Konstruktors ist die
+**alte** AxHost-Konstante, die um eins auf `AxHost.StorageType` verschoben wird. Die `2` des Enums
+für `StreamInit` wählt damit `Storage` — und ein Control, das Strombytes als Storage lesen soll,
+reißt den Prozess ab. `WinFormsHost.TrySetPersistedState` nimmt deshalb `1` und lehnt ein bereits
+erzeugtes Control mit `False` ab, statt den Ladeaufruf ins Leere laufen zu lassen.
+
+| Karte | Nachweis |
+| --- | --- |
+| `managed-r5-stream-persistence` | `StreamPersistenceTests` |
+
 
 ## Aktive Restliste
 
@@ -438,7 +466,7 @@ kann: einen unabhängigen Container, registrierte native Komponenten, eine laufe
 
 Nach R4.
 
-Die vorhandenen WinForms-/AxHost-Adapter, intrinsischen Controls und PropertyBag-Pfade sind die Basis. Stream-only-Persistenz und die OLE-Verträge generierter UserControls brauchen eigene Abnahmen in einem unabhängigen Container. Ein im Managed-Host ausführbares `.ctl` ist kein Beleg für vollständige OCX-Kompatibilität.
+Die vorhandenen WinForms-/AxHost-Adapter, intrinsischen Controls, PropertyBag-Pfade und die oben abgenommene Stromspeicherung sind die Basis. Die OLE-Verträge generierter UserControls brauchen eine eigene Abnahme in einem unabhängigen Container. Ein im Managed-Host ausführbares `.ctl` ist kein Beleg für vollständige OCX-Kompatibilität.
 
 Kompilierte PropertyPages samt ApplyChanges gehören zum Managed-/COM-Umfang. Eine eigene Oberfläche zum visuellen Erstellen und Bearbeiten dieser Seiten gehört zur späteren IDE. DataEnvironment, DataReport und UserDocument werden an ihren tatsächlichen Daten-/Report-/Containerabläufen geprüft; reine Klassifikation oder Ausführung einer eigenen Testmethode reicht nicht. ADO/OLE DB werden konsumiert; Datenbank-Provider werden nicht neu implementiert.
 
@@ -446,7 +474,6 @@ Die Grafikimplementierung arbeitet derzeit auf verwalteten Bitmaps. Entscheidend
 
 | Karte | Ziel und Abnahme |
 | --- | --- |
-| `managed-r5-stream-persistence` | **Stream-basierte Control-Persistenz:** IPersistStreamInit-Zustand laden/sichern; InitNew, fehlende Schnittstelle und beschädigten Stream mit einer passenden Control-Fixture prüfen. |
 | `managed-r5-usercontrol-ole` | **Generierte UserControls im Fremdcontainer:** Kompilierte ctl-Komponente unabhängig aktivieren, zeichnen, speichern, laden und freigeben; OLE View/In-Place, Ambient Properties und Events prüfen. |
 | `managed-r5-property-pages` | **PropertyPage-COM-Vertrag:** Kompilierte pag-Artefakte im vorhandenen externen Container ausführen; ApplyChanges erreicht das Control und Persistenz, eigene Designer-UI bleibt späteres Produkt. |
 | `managed-r5-enterprise` | **Enterprise-Artefakte ausführen:** DataEnvironment-Kommandos, DataReport-Bindung/Ausgabe und UserDocument-Hosting über kontrollierte Fixtures/verfügbare ADO-Komponenten prüfen; fehlende Abhängigkeiten sichtbar lassen. |

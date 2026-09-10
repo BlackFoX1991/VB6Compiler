@@ -2008,7 +2008,7 @@
         "connections": "tested connections attach, dispatch and detach",
         "fallback": "absence of IPersistPropertyBag returns false to permit ordinary property assignment"
       },
-      "notes": "Measured PropertyBag path only. Stream-only persistence and external property-page ApplyChanges remain managed-r5-stream-persistence and managed-r5-property-pages.",
+      "notes": "Measured PropertyBag path only; stream persistence is measured separately under managed-r5-stream-persistence. External property-page ApplyChanges remains managed-r5-property-pages.",
       "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.Tests/ComDispatchRuntimeTests.cs",
@@ -3055,17 +3055,17 @@
       "dependsOn": [
         "managed-r4-server-lifetime"
       ],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Stream-basierte Control-Persistenz",
       "expected": {
         "acceptance": "IPersistStreamInit-Zustand laden/sichern; InitNew, fehlende Schnittstelle und beschädigten Stream mit einer passenden Control-Fixture prüfen."
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
         "tests/VB6.Runtime.Tests/ComPersistenceRuntimeTests.cs",
         "tests/VB6.Runtime.WinForms.Tests/StreamPersistenceTests.cs"
       ],
-      "notes": "Teilfortschritt am 2026-09-10, und zwar mit vier Messungen, die die Karte erst scharf machen. Erstens: Alle elf registrierten Stock-Controls bieten IPersistStreamInit, **keines** bietet das einfache IPersistStream -- die beiden sind getrennte Schnittstellen, die Init-Variante leitet nicht von der anderen ab -- und jedes antwortet auf GetSizeMax mit E_NOTIMPL. Ein Container, der daraus einen Puffer bemisst, uebergibt nichts; der Strom muss also mitwachsen. Zweitens: Ein Control ohne Container nimmt ueberhaupt keine Eigenschaften an. Min, Max und Value auf einem blanken Slider zu setzen und zurueckzulesen ergibt Nullen, und der Strom, den es schreibt, traegt diese Nullen getreu -- eine Fixture ohne Site und Fenster beweist also nichts. Drittens: Die Container-Seite ist gebaut und gemessen. VBComStreamPersistence reicht dem Control einen eigenen IStream ueber Speicher; Save schreibt 116 Bytes fuer einen Slider, zwei verschiedene Zustaende schreiben verschiedene Stroeme, derselbe Zustand zweimal denselben, InitNew laeuft fuer einen leeren Block, ein Control ohne die Schnittstelle ist kein Fehler, ein zerstoerter Block laesst das Control ansprechbar, und IsDirty steht nach Save mit clearDirty wieder auf sauber (S_OK heisst schmutzig, S_FALSE sauber -- die umgekehrte Leserichtung). Viertens, und deshalb bleibt die Karte offen: Ein spaetes Load wird vom Control **angenommen und ignoriert**. Ein bereits erzeugtes OCX behaelt seine Vorgaben; gemessen ueber die eigene Schnittstelle, ueber AxHost.OcxState eines lebenden Controls und ueber einen selbst gebauten AxHost.State aus denselben Bytes. Nebenbefund dabei: AxHost nimmt fuer dieses Control nur Speichertyp 1 (Stream) an und weist 0, 2 und 3 mit 'anderer Speichertyp' zurueck -- dieselbe Aussage wie die Schnittstellenmessung, von der WinForms-Seite. Der fehlende Teil ist daher nicht das Marshalling, sondern der Zeitpunkt: Ein Strom gehoert dem Control gegeben, *bevor* es erzeugt wird, und WinFormsHost.CreateControl erzeugt das OCX sofort. Der naechste Schritt ist ein Erzeugungspfad, der den persistierten Block vorher entgegennimmt.",
+      "notes": "Teilfortschritt am 2026-09-10, und zwar mit vier Messungen, die die Karte erst scharf machen. Erstens: Alle elf registrierten Stock-Controls bieten IPersistStreamInit, **keines** bietet das einfache IPersistStream -- die beiden sind getrennte Schnittstellen, die Init-Variante leitet nicht von der anderen ab -- und jedes antwortet auf GetSizeMax mit E_NOTIMPL. Ein Container, der daraus einen Puffer bemisst, uebergibt nichts; der Strom muss also mitwachsen. Zweitens: Ein Control ohne Container nimmt ueberhaupt keine Eigenschaften an. Min, Max und Value auf einem blanken Slider zu setzen und zurueckzulesen ergibt Nullen, und der Strom, den es schreibt, traegt diese Nullen getreu -- eine Fixture ohne Site und Fenster beweist also nichts. Drittens: Die Container-Seite ist gebaut und gemessen. VBComStreamPersistence reicht dem Control einen eigenen IStream ueber Speicher; Save schreibt 116 Bytes fuer einen Slider, zwei verschiedene Zustaende schreiben verschiedene Stroeme, derselbe Zustand zweimal denselben, InitNew laeuft fuer einen leeren Block, ein Control ohne die Schnittstelle ist kein Fehler, ein zerstoerter Block laesst das Control ansprechbar, und IsDirty steht nach Save mit clearDirty wieder auf sauber (S_OK heisst schmutzig, S_FALSE sauber -- die umgekehrte Leserichtung). Viertens: Ein spaetes Load wird vom Control **angenommen und ignoriert**. Ein bereits erzeugtes OCX behaelt seine Vorgaben; gemessen ueber die eigene Schnittstelle, ueber AxHost.OcxState eines lebenden Controls und ueber einen selbst gebauten AxHost.State aus denselben Bytes. Der fehlende Teil war damit nicht das Marshalling, sondern der Zeitpunkt: Ein Strom gehoert dem Control gegeben, *bevor* es erzeugt wird. Abgeschlossen am 2026-09-10 genau so. WinFormsHost.TrySetPersistedState legt den Block als AxHost.OcxState ab und lehnt ein bereits erzeugtes Control mit False ab, statt den Ladeaufruf ins Leere laufen zu lassen; TryGetPersistedState liest ihn zurueck. Zwei Fallen sassen in der Huelle von AxHost.State, und beide melden nichts: Der Puffer wird laengenpraefixiert gelesen -- Int32 Laenge, dann die Bytes -- weshalb ein roher Strom seine ersten vier Bytes als Laenge verliert und das Control mit Nullen dasteht. Und der Speichertyp des oeffentlichen Konstruktors ist die **alte** AxHost-Konstante, die der Konstruktor um eins auf AxHost.StorageType verschiebt, wo Unknown die Null belegt; die 2 des Enums fuer StreamInit waehlt damit Storage, und ein Control, das Stroembytes als Storage lesen soll, reisst den Prozess ab. Die frueher notierte Lesart 'Speichertyp 1 ist Stream' war genau dieser Versatz -- 1 kommt als StreamInit an. Gemessener Rundlauf ueber zwei Hosts: Min=5, Max=55, Value=42 kommen im zweiten Control an, und der Block, den es danach selbst schreibt, ist bytegleich mit dem geladenen.",
       "title": "Stream-basierte Control-Persistenz"
     },
     {
@@ -3670,7 +3670,7 @@
         "tests/VB6.Compiler.Tests/UserControlHostIntrinsicAnalysisTests.cs",
         "tests/VB6.Compiler.Tests/EnterpriseArtifactCompilationTests.cs"
       ],
-      "gap": "managed-r5-stream-persistence: Stream-basierte Control-Persistenz; managed-r5-usercontrol-ole: Generierte UserControls im Fremdcontainer; managed-r5-property-pages: PropertyPage-COM-Vertrag"
+      "gap": "managed-r5-usercontrol-ole: Generierte UserControls im Fremdcontainer; managed-r5-property-pages: PropertyPage-COM-Vertrag"
     },
     {
       "id": "abi-declare-addressof",

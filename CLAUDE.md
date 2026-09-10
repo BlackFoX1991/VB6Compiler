@@ -16,8 +16,8 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist die einzige aktive Managed-Roadmap R0–R7 in `docs/ROADMAP.md`.
 <!-- verification:claude-matrix:begin -->
-Die Matrix enthält 173 Erwartungen: 163 `implemented`, 0 `partial`, 10 `planned`;
-163 `documented-verified`, 10 `not-yet-verified`, 0 `oracle-verified`.
+Die Matrix enthält 173 Erwartungen: 164 `implemented`, 0 `partial`, 9 `planned`;
+164 `documented-verified`, 9 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:claude-matrix:end -->
 Offene Karten tragen `milestone` und `dependsOn`; sie schließen ausdrücklich
 Objektlebensdauer, gespeicherte Zeiger und externe COM-/ActiveX-Verträge ein.
@@ -44,9 +44,13 @@ dieselben, weil die CLR ihre Nummern aus `DispIdAttribute` liest — der Emitter
 Und ein VB6-Property-Paar wurde als zwei gleichnamige CLR-Methoden emittiert, weshalb eine Klasse
 mit `Property Get`/`Let` gar keine Typbibliothek erzeugen konnte.
 
-Offen bleibt daraus `managed-r5-record-dispatch`: Ein UDT-Wert lässt sich über die
-AutoDual-Klassenschnittstelle der CLR nicht übergeben, und der Ausweg — ein eigenes `IDispatch`
-für die erzeugten Klassen — berührt jede COM-gehostete Klasse.
+Aus R4 abgetrennt und inzwischen ebenfalls geschlossen ist `managed-r5-record-dispatch`: Ein
+UDT-Wert lässt sich über die AutoDual-Klassenschnittstelle der CLR nicht übergeben, deshalb
+implementieren die erzeugten Klassen ihr `IDispatch` selbst — über `ICustomQueryInterface`, mit
+einer vtable aus Funktionszeigern und einer eigenen `IRecordInfo`. Damit gehören DISPIDs, Namen und
+Marshalling dem Compiler. Ebenfalls geschlossen ist `managed-r5-stream-persistence`: Der
+persistierte Strom eines Controls reist über `AxHost.OcxState` und muss dort ankommen, **bevor**
+das OCX entsteht — ein spätes `Load` wird angenommen und ignoriert.
 
 Der abgenommene `managed-r3-pointers`-Slice trägt im x86-Pfad sieben
 Speicherfamilien: Locals, Modulvariablen (mit `Static`-Locals), ByVal-Parameter und flache
@@ -282,8 +286,8 @@ Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite 
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
 <!-- verification:claude-measurements:begin -->
-Stand der Prüfung 2026-09-10 auf `ef6ca10` mit nicht committeten Änderungen: 1858 Standardfälle in 13 Projekten,
-1858 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: nicht ausgeführt.
+Stand der Prüfung 2026-09-10 auf `931fa56` mit nicht committeten Änderungen: 1865 Standardfälle in 13 Projekten,
+1865 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: nicht ausgeführt.
 VISIA: 40/40 Projektitems, 0 Diagnosen.
 Vollständiges Gate: False. Laufbericht: `artifacts/verification-report.json`.
 <!-- verification:claude-measurements:end -->
@@ -407,6 +411,18 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   Tüte kann sie also nicht unterscheiden, und eine durchgereichte Zeichenkette wird als
   Schnittstellenzeiger gelesen: `0xC0000005`. `IPersistStreamInit` braucht keines der gemessenen
   Stock-Controls — `TextRTF` und `Buttons` bietet die Tüte selbst an.
+- **Ein persistierter Strom kommt zu spät, sobald das OCX existiert — und `AxHost.State` hat zwei
+  stumme Fallen.** Ein erzeugtes Control nimmt `IPersistStreamInit.Load` **an und ignoriert es**;
+  es meldet keinen Fehler, es behält seine Vorgaben. Der Block gehört ihm vor der Erzeugung
+  gegeben, und die einzige Stelle dafür ist `AxHost.OcxState`. Dort liest `AxHost.State` seinen
+  Puffer **längenpräfixiert** (`Int32`-Länge, dann die Bytes) — ein roher Strom verliert seine
+  ersten vier Bytes an eine Länge, die er nie war, und das Control steht danach auf Vorgaben. Und
+  der `storageType` des öffentlichen Konstruktors ist die **alte** AxHost-Konstante, die um eins
+  auf `AxHost.StorageType` verschoben wird, wo `Unknown` die Null belegt: Die `2` des Enums für
+  `StreamInit` wählt `Storage`, und ein Control, das Strombytes als Storage lesen soll, reißt den
+  Prozess ab. `1` ist der Wert, der als `StreamInit` ankommt. Keine der drei Fehlformen erzeugt
+  eine Diagnose — wer hier etwas ändert, vergleicht die privaten Felder eines echten `OcxState`
+  mit denen des selbst gebauten, statt aus dem Verhalten zu schließen.
 - **Ein VB6-Event auf einem ActiveX-Control hat zwei mögliche Quellen.** Die Events des OCX kommen über den COM-Connection-Point und verlangen den **VB6-Namen** — ein WinForms-Name wie `TextChanged` sagt einem OCX nichts, und die Übersetzung in `FindEvent` gilt nur dem managed Adapter. Fokus-Events dagegen sind in VB6 **Extender-Events**: Sie stammen vom Container, fehlen im Event-Interface des Controls und kommen nur über das `AxHost`-Wrapper-Event. Wer nur einen der beiden Wege bedient, bekommt einen Pfad, der stillschweigend nie feuert. Beim Ergänzen von Events immer beide durchdenken und nativ nachmessen, nicht herleiten — für `GotFocus` war die Namensregel schlicht die falsche Erklärung.
 - **Die Umsetzung ist hier meist weiter als ihre Absicherung — erst messen, dann bauen.** Bei
   `l1-02-f` und `l1-02-g` lautete der Befund zweimal hintereinander „das Verhalten war bereits
