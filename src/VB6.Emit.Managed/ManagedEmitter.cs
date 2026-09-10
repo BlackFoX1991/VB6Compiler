@@ -2185,7 +2185,9 @@ public sealed class ManagedEmitter
                      IrRuntimeMethod.FileInputValue or
                      IrRuntimeMethod.FileInput or
                      IrRuntimeMethod.FileInputB or
-                     IrRuntimeMethod.FileGetString)
+                     IrRuntimeMethod.FileGetString or
+                     IrRuntimeMethod.FileGetFixedString or
+                     IrRuntimeMethod.FilePutFixedString)
             {
                 encoder.LoadConstantI4((int)_program.CompatibilityProfile);
             }
@@ -6857,6 +6859,8 @@ public sealed class ManagedEmitter
                 IrRuntimeMethod.FileDateTime => Static(typeof(VBFiles), nameof(VBFiles.FileDateTime), typeof(string)),
                 IrRuntimeMethod.FileLengthByPath => Static(typeof(VBFiles), "Length", typeof(string)),
                 IrRuntimeMethod.FilePut => ResolveFilePut(call, out skippedArgument),
+                IrRuntimeMethod.FilePutFixedString => ResolveFilePutFixedString(call, out skippedArgument),
+                IrRuntimeMethod.FileGetFixedString => ResolveFileGetFixedString(call, out skippedArgument),
                 IrRuntimeMethod.FilePutRaw => ResolveFilePutRaw(call, out skippedArgument),
                 IrRuntimeMethod.FilePutRawFixedString => ResolveFilePutRaw(call, out skippedArgument),
                 IrRuntimeMethod.FilePutVariant => ResolveFileVariantPut(call, out skippedArgument),
@@ -6932,6 +6936,29 @@ public sealed class ManagedEmitter
             return omitted
                 ? Static(typeof(VBFiles), nameof(VBFiles.GetString), typeof(int), typeof(string), typeof(VBCompatibilityProfile))
                 : Static(typeof(VBFiles), nameof(VBFiles.GetString), typeof(int), typeof(long), typeof(string), typeof(VBCompatibilityProfile));
+        }
+
+        /// <summary>
+        /// A standalone <c>String * n</c> carries its declared width as an argument, which is what
+        /// separates it from the variable-length transfer beside it: no descriptor, and no need for
+        /// the target's current value on the way back.
+        /// </summary>
+        private MethodInfo ResolveFilePutFixedString(IrRuntimeCallExpression call, out int skippedArgument)
+        {
+            var omitted = call.Arguments[1].Expression is IrNullExpression;
+            skippedArgument = omitted ? 1 : -1;
+            return omitted
+                ? Static(typeof(VBFiles), nameof(VBFiles.PutFixedString), typeof(int), typeof(string), typeof(int), typeof(VBCompatibilityProfile))
+                : Static(typeof(VBFiles), nameof(VBFiles.PutFixedString), typeof(int), typeof(long), typeof(string), typeof(int), typeof(VBCompatibilityProfile));
+        }
+
+        private MethodInfo ResolveFileGetFixedString(IrRuntimeCallExpression call, out int skippedArgument)
+        {
+            var omitted = call.Arguments[1].Expression is IrNullExpression;
+            skippedArgument = omitted ? 1 : -1;
+            return omitted
+                ? Static(typeof(VBFiles), nameof(VBFiles.GetFixedString), typeof(int), typeof(int), typeof(VBCompatibilityProfile))
+                : Static(typeof(VBFiles), nameof(VBFiles.GetFixedString), typeof(int), typeof(long), typeof(int), typeof(VBCompatibilityProfile));
         }
 
         private MethodInfo ResolveFilePutRaw(IrRuntimeCallExpression call, out int skippedArgument)
