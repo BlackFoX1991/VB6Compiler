@@ -70,6 +70,11 @@ public static class UserDefinedTypeFileLayout
             ? IsBinaryTransferable(nested, activePath)
             : IsBinaryScalar(type);
 
+    /// <summary>
+    /// The other half of the pair described on <c>Binder.IsTransferableFileType</c>: both lists
+    /// name the same set and have to stay in step. They did not, and this one was the richer of
+    /// the two -- a <c>String * n</c> was transferable here and rejected there.
+    /// </summary>
     private static bool IsBinaryScalar(TypeSymbol type) =>
         type == TypeSymbol.Byte ||
         type == TypeSymbol.Integer ||

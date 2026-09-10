@@ -2530,7 +2530,17 @@ public sealed class Binder
         return new BoundTypeOfExpression(expression, classType);
     }
 
+    /// <summary>
+    /// What <c>Get</c> and <c>Put</c> can carry as a standalone target.
+    ///
+    /// This list and <c>UserDefinedTypeFileLayout.IsBinaryScalar</c> describe the same set and
+    /// have to stay in step. They did not: a <c>String * n</c> was transferable **inside** a
+    /// record and rejected on its own with <c>VB6S0058</c>, which is a diagnostic saying "not
+    /// implemented yet" about something that was implemented one layer down. The original accepts
+    /// it, so the rejection was the defect rather than the guard.
+    /// </summary>
     private static bool IsTransferableFileType(TypeSymbol type) =>
+        type is FixedLengthStringTypeSymbol ||
         type == TypeSymbol.Byte ||
         type == TypeSymbol.Integer ||
         type == TypeSymbol.Long ||
