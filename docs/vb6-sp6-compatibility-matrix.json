@@ -3132,16 +3132,18 @@
       "matrixEntry": "runtime-file-io",
       "milestone": "R1",
       "dependsOn": [],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Bytelayout eines Strings bei Put im Binary-Modus",
       "expected": {
         "acceptance": "Put schreibt im Binary-Modus die Zeichen eines Strings ohne Laengenpraefix und in der ANSI-Codepage, wie das Original."
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.Compiler.Tests/OracleFileLayoutTests.cs"
+        "tests/VB6.Compiler.Tests/OracleFileLayoutTests.cs",
+        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/FileStringIoExecutionTests.cs"
       ],
-      "notes": "Gemessen am 2026-09-10 gegen VB6 SP6, gegen Rohbytes und nicht gegen einen Selbst-Roundtrip -- die Roadmap sagt zu dieser Flaeche ausdruecklich, dass ihre Vertraege auf VBA-Dokumentation ruhen und nie gegen ein Original geprueft wurden. Put #f, 1, 'ABC' im Binary-Modus ergibt im Original 414243, also drei ANSI-Bytes ohne Praefix, und bei uns 0300410042004300: ein Zwei-Byte-Laengenpraefix gefolgt von UTF-16. Das sind zwei Fehler in einem Wert. Das Laengenpraefix gehoert zum **Random**-Modus, nicht zum Binary-Modus, und die Kodierung ist unabhaengig davon falsch -- VB6 schreibt Datei-I/O in der ANSI-Codepage, was CLAUDE.md fuer das vb6-sp6-Profil auch so festhaelt. Die Folge ist eine gebrochene Dateikompatibilitaet in beide Richtungen: Eine Datendatei eines VB6-Programms ist fuer unser Programm unlesbar und umgekehrt, und genau das zu verhindern ist der Zweck dieses Compilers. Was im selben Lauf **stimmt**, grenzt den Befund ein: Integer, Long, Byte, Boolean, Single, Double, Currency und Date kommen bytegleich heraus, bei den vorzeichenbehafteten auch negativ. Die Zahlenlayouts sind also richtig; allein der String ist es nicht. Der Random-Modus wurde hier nicht gemessen und ist eine eigene Frage.",
+      "notes": "Gemessen am 2026-09-10 gegen VB6 SP6, gegen Rohbytes und nicht gegen einen Selbst-Roundtrip -- die Roadmap sagt zu dieser Flaeche ausdruecklich, dass ihre Vertraege auf VBA-Dokumentation ruhen und nie gegen ein Original geprueft wurden. Put #f, 1, 'ABC' im Binary-Modus ergibt im Original 414243, also drei ANSI-Bytes ohne Praefix, und bei uns 0300410042004300: ein Zwei-Byte-Laengenpraefix gefolgt von UTF-16. Das sind zwei Fehler in einem Wert. Das Laengenpraefix gehoert zum **Random**-Modus, nicht zum Binary-Modus, und die Kodierung ist unabhaengig davon falsch -- VB6 schreibt Datei-I/O in der ANSI-Codepage, was CLAUDE.md fuer das vb6-sp6-Profil auch so festhaelt. Die Folge ist eine gebrochene Dateikompatibilitaet in beide Richtungen: Eine Datendatei eines VB6-Programms ist fuer unser Programm unlesbar und umgekehrt, und genau das zu verhindern ist der Zweck dieses Compilers. Was im selben Lauf **stimmt**, grenzt den Befund ein: Integer, Long, Byte, Boolean, Single, Double, Currency und Date kommen bytegleich heraus, bei den vorzeichenbehafteten auch negativ. Die Zahlenlayouts sind also richtig; allein der String ist es nicht. Abgeschlossen am 2026-09-10, und der Random-Modus ist dabei mitgemessen worden statt offen zu bleiben: Put #f, 1, 'ABC' ergibt dort im Original 03 00 41 42 43 -- der Zeichenzaehler, dann die Zeichen in der Codepage. Der Deskriptor gehoert also zu Random und nur dorthin. Die Leserichtung hat eine eigene Regel, die ein Roundtrip nie zeigt und die deshalb ebenfalls am Original gemessen wurde: Im Binary-Modus liest VB6 so viele Zeichen, wie die Zielvariable gerade haelt -- eine Datei mit sechs Bytes in eine dreizeichige Variable gelesen ergibt 'ABC', in eine leere gelesen die leere Zeichenkette und nicht die ganze Datei. Der bisherige Wert ist damit ein Argument des Lesens, weshalb GetString ihn entgegennimmt und der Lowerer den Platz zweimal senkt. Ein Nebenbefund beim Bauen: Der Deskriptor zaehlt Zeichen, gelesen werden Bytes; in VB6 ist das dieselbe Zahl, im Deterministic-Profil mit UTF-8 nicht, und dort schnitt ein Lesen von N Bytes mitten durch ein Zeichen. Eine Mehrbyte-Kodierung wird deshalb zeichenweise dekodiert. Die beiden bisherigen Tests waren Selbst-Roundtrips und bestanden *wegen* des Defekts -- Put schrieb einen Deskriptor, den Get wieder las; sie sind durch Bytezusicherungen und durch den leeren Lesefall ersetzt, der vorher still richtig aussah. Gegenprobe: Mit zurueckgenommener Modusunterscheidung melden Orakelfall und E2E-Fall beide.",
       "title": "Bytelayout eines Strings bei Put im Binary-Modus"
     },
     {
@@ -3661,7 +3663,7 @@
       },
       "implementation": "partial",
       "verification": "not-yet-verified",
-      "gap": "r1-put-binary-string-layout: Bytelayout eines Strings bei Put im Binary-Modus; r1-put-fixed-string: Put eines Strings fester Laenge; r1-chdir-missing-directory: Fehlernummer von ChDir bei fehlendem Verzeichnis",
+      "gap": "r1-put-fixed-string: Put eines Strings fester Laenge; r1-chdir-missing-directory: Fehlernummer von ChDir bei fehlendem Verzeichnis",
       "tests": [
         "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
         "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs",

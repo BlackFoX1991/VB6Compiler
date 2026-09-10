@@ -9327,3 +9327,39 @@ und wir nicht, standen bis eben nur als Fließtext in `CLAUDE.md` und im Changel
 dokumentierter Befund ohne Karte ist genau das, was die Matrixregeln verbieten — offene Lücken
 nennen konkrete Karten. Sie hat jetzt eine, und der Bereich
 `language-declarations-and-statements` geht darauf auf `partial`.
+
+## Der schwerste Orakelbefund ist behoben — `r1-put-binary-string-layout`
+
+Die erste der neun Orakelkarten ist zu, und es ist die, die als einzige **Dateien** verfälschte
+statt Werte oder Text.
+
+`Put #f, 1, "ABC"` schrieb `03 00 41 00 42 00 43 00`, das Original schreibt `41 42 43`. Zwei Fehler
+in einem Wert: ein Zwei-Byte-Deskriptor, der zum `Random`-Modus gehört und nicht in den Binary-
+Modus, und UTF-16 statt der Codepage. Beides ist jetzt modus- und profilabhängig — `TextEncoding`
+zog diese Linie für `Print` und `Write` längst, und eine binäre Übertragung ist nicht anders.
+
+**Der Random-Modus ist mitgemessen worden**, statt als offene Frage stehenzubleiben: Dort schreibt
+das Original `03 00 41 42 43` — der Zeichenzähler, dann die Zeichen in der Codepage. Der Deskriptor
+gehört also zu Random und nur dorthin.
+
+**Die Leserichtung hatte eine eigene Regel, die ein Roundtrip nie zeigt.** Im Binary-Modus liest
+VB6 so viele Zeichen, wie die Zielvariable gerade hält — gemessen: eine Datei mit sechs Bytes in
+eine dreizeichige Variable gelesen ergibt `ABC`, in eine leere gelesen die leere Zeichenkette und
+nicht die ganze Datei. Der bisherige Wert ist damit ein **Argument** des Lesens und nicht bloß sein
+Ziel; `GetString` nimmt ihn entgegen, und der Lowerer senkt den Platz zweimal — einmal gelesen,
+einmal beschrieben.
+
+**Beim Bauen kam ein Nebenbefund heraus, der nur außerhalb von VB6 existiert.** Der Deskriptor
+zählt Zeichen, gelesen werden Bytes. In VB6 ist das dieselbe Zahl, weil eine ANSI-Codepage ein Byte
+je Zeichen hat — im `Deterministic`-Profil mit UTF-8 nicht, und dort schnitt ein Lesen von N Bytes
+mitten durch ein Zeichen: `Grü?` statt `Grüße`. Eine Mehrbyte-Kodierung wird deshalb zeichenweise
+dekodiert.
+
+**Die beiden vorhandenen Tests bestanden *wegen* des Defekts.** Beide waren Selbst-Roundtrips:
+`Put` schrieb einen Deskriptor, den `Get` wieder las, und das Paar bestätigte sich selbst — genau
+das Muster, vor dem R1 in derselben Roadmap warnt, die diese Fläche als ungemessen führte. Einer
+davon hieß sogar `...ContinueFromPrefixPayload`. Sie sind durch Bytezusicherungen für beide Modi
+ersetzt und um den leeren Lesefall ergänzt, der vorher still richtig aussah.
+
+Gegenprobe: Mit zurückgenommener Modusunterscheidung melden Orakelfall **und** E2E-Fall. Kanonischer
+Lauf: 1895/1895 im Standardlauf, 93/93 nativ, 5/5 Orakel, VISIA 40/40, Gate vollständig.

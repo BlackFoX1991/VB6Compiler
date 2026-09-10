@@ -21,12 +21,12 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-10 auf `main` / `7990a1f` mit nicht committeten Änderungen, Lauf `20260910T141218Z-b1982270`:
+Messung vom 2026-09-10 auf `main` / `1cbec42` mit nicht committeten Änderungen, Lauf `20260910T185215Z-24a009a7`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1893 Fälle: 1893 bestanden, 0 fehlgeschlagen, 0 übersprungen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1895 Fälle: 1895 bestanden, 0 fehlgeschlagen, 0 übersprungen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 93/93 bestanden, 0 übersprungen | Getrennter x86-Lauf der WinForms-Tests |
 | Orakel-Gegenpruefung gegen VB6 SP6 | 5/5 bestanden, 0 übersprungen | Vergleich gegen VB6 SP6; deckt nur die Fläche ab, die ein Orakelfall stellt |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
@@ -42,8 +42,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **184 Erwartungen**, davon **166 implemented**, **0 partial** und **18 planned**;
-**166/184 documented-verified**, 18 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **184 Erwartungen**, davon **167 implemented**, **0 partial** und **17 planned**;
+**167/184 documented-verified**, 17 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -527,9 +527,9 @@ ersten Einsatz hat sie eine Zusage widerlegt, die als `documented-verified` gef�
 
 ### R1 — Sprach- und Runtime-Verträge: der Rest aus den Orakelmessungen
 
-R1 ist als Etappe abgenommen und steht mit seinen Nachweisen oben. Neun Karten sind danach
-hinzugekommen, und **keine** davon aus einer Lücke im Inventar: Sie stammen alle aus einer neuen
-Messmöglichkeit, dem echten VB6 SP6.
+R1 ist als Etappe abgenommen und steht mit seinen Nachweisen oben. Neun Karten kamen danach hinzu,
+und **keine** davon aus einer Lücke im Inventar: Sie stammen alle aus einer neuen Messmöglichkeit,
+dem echten VB6 SP6. Eine ist bereits wieder geschlossen — die schwerste.
 
 Das ist der wichtigere Teil des Befunds. Die Variant-Promotionstabelle stand mit 49 gemessenen
 Operandenpaaren als vollständig korrekt in den Notizen — gemessen gegen das eigene Verständnis,
@@ -557,22 +557,19 @@ geschrieben ist. Was kein Orakelfall stellt, bleibt `documented-verified`.
 | `r1-format-general-single` | **General Number auf einem Single:** sieben signifikante Stellen wie im Original, nicht fünfzehn. |
 | `r1-str-leading-zero` | **Führende Null von Str:** `Str` lässt die Null vor dem Trenner weg; das führende Leerzeichen für positive Zahlen bleibt. |
 | `r1-chdir-missing-directory` | **Fehlernummer von ChDir:** ein fehlendes Verzeichnis meldet 76 (Path not found), nicht 53. |
-| `r1-put-binary-string-layout` | **Bytelayout eines Strings bei `Put`:** im Binary-Modus ohne Längenpräfix und in der ANSI-Codepage, wie das Original. |
 | `r1-put-fixed-string` | **`Put` eines Strings fester Länge:** `String * n` wird getragen statt mit `VB6S0058` abgelehnt. |
 | `r1-module-name-rules` | **Namensregeln für Module und Bezeichner:** die drei vom Original durchgesetzten Regeln werden gemeldet statt stillschweigend angenommen. |
 
-`r1-put-binary-string-layout` wiegt unter diesen neun am schwersten, weil es als einzige das
-Projektziel „ein altes `.vbp` wird ohne Quelltextänderung übersetzt" direkt bricht:
+Die schwerste dieser Karten ist bereits geschlossen: das Bytelayout eines Strings bei `Put` — die
+einzige, die **Dateien** verfälschte statt Werte oder Text, und damit als einzige das Projektziel
+„ein altes `.vbp` wird ohne Quelltextänderung übersetzt" direkt brach. Der Nachweis steht im
+Changelog. Keine der acht verbliebenen berührt Dateiinhalte.
 
-```
-Put #f, 1, "ABC"     VB6: 41 42 43                    ANSI, kein Präfix
-                     wir: 03 00 41 00 42 00 43 00     Längenpräfix + UTF-16
-```
-
-Das Längenpräfix gehört zum `Random`-Modus, die Kodierung ist unabhängig davon falsch. Die Folge
-ist eine in **beide** Richtungen gebrochene Dateikompatibilität: Eine Datendatei aus einem
-VB6-Programm ist für ein übersetztes Programm unlesbar und umgekehrt. Die übrigen acht Karten
-verfälschen Werte oder Texte, aber keine Dateien.
+Von den acht wiegt `r1-division-result-type` am schwersten: Sie verfälscht einen **Wert**, jede
+`Integer / Integer`-Division verliert Präzision. Die vier Ausgabekarten machen falschen Text bei
+richtigem Wert, `r1-chdir-missing-directory` eine falsche Fehlernummer, und
+`r1-module-name-rules` sowie `r1-put-fixed-string` sind Formen, die das Original ablehnt
+beziehungsweise trägt, während wir das Umgekehrte tun.
 
 ### R5 — Forms, ActiveX und persistierte Artefakte
 
