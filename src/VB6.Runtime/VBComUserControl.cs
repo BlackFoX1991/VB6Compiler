@@ -72,8 +72,29 @@ public abstract class VBComUserControl
     private IntPtr _clientSite;
     private int _nextAdviseConnection = 1;
     private int _frozenEvents;
+    private IVBControlPresentation? _presentation;
+    private bool _presentationResolved;
     private bool _dirty;
     private bool _initialised;
+
+    /// <summary>
+    /// Resolves the presentation before the generated class's own constructor body runs.
+    ///
+    /// The order is not a preference, it is forced: the designer envelope of a generated control
+    /// stands in **its** constructor, which runs immediately after this one, and it creates the
+    /// control's children through the ambient host. A container activates the class with
+    /// <c>CoCreateInstance</c>, so there is no earlier moment to put a host in place -- and
+    /// without one the envelope runs against nothing and the control ends up with no children at
+    /// all, silently.
+    ///
+    /// A process with no presentation companion pays one failed assembly load, once for the
+    /// lifetime of the process.
+    /// </summary>
+    protected VBComUserControl()
+    {
+        _presentation = VBControlPresentationHost.TryCreate(this);
+        _presentationResolved = true;
+    }
 
     /// <summary>
     /// The size the designer gave this control, in HIMETRIC. Zero means the designer never spoke,
@@ -84,10 +105,26 @@ public abstract class VBComUserControl
     protected VBOleSize DesignExtent { get; set; }
 
     /// <summary>
-    /// The window and drawing side, when a host attached one. Null is the ordinary state in a
-    /// headless process, and every member that needs it says so.
+    /// The window and drawing side, when a host attached one or a companion could be found.
+    ///
+    /// It resolves on first need rather than in the constructor: a headless process must not load
+    /// a UI framework because a control object happened to be created, and a container that only
+    /// reads properties never asks for a window at all. Null stays the ordinary state, and every
+    /// member that needs one says so.
     /// </summary>
-    protected IVBControlPresentation? Presentation { get; private set; }
+    protected IVBControlPresentation? Presentation
+    {
+        get
+        {
+            if (_presentation is null && !_presentationResolved)
+            {
+                _presentationResolved = true;
+                _presentation = VBControlPresentationHost.TryCreate(this);
+            }
+
+            return _presentation;
+        }
+    }
 
     /// <summary>
     /// Takes the designer size from the <c>.ctl</c>, in twips, and stores it as the extent OLE
@@ -119,7 +156,8 @@ public abstract class VBComUserControl
     public void AttachPresentation(IVBControlPresentation presentation)
     {
         ArgumentNullException.ThrowIfNull(presentation);
-        Presentation = presentation;
+        _presentation = presentation;
+        _presentationResolved = true;
     }
 
     /// <summary>
