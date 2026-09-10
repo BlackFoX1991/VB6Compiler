@@ -78,6 +78,53 @@ public sealed class FileStringIoExecutionTests
         CollectionAssert.AreEqual(new[] { "Grüße" }, VB6TestProgram.SplitLines(output), output);
     }
 
+    /// <summary>
+    /// A standalone <c>String * n</c> used to report <c>VB6S0058</c> -- "Put of type 'String * 6'
+    /// is not implemented yet" -- although the very same type was transferable *inside* a UDT. Two
+    /// lists described the same set and had drifted apart.
+    ///
+    /// Measured against VB6 SP6 on 2026-09-10: the declared width is the length, so the file holds
+    /// <c>41 42 20 20 20 20</c> and the read comes back padded. Asserted over the bytes rather than
+    /// over a round trip, because a <c>Put</c>/<c>Get</c> pair only ever confirms itself.
+    /// </summary>
+    [TestMethod]
+    public void EmitManagedApplication_TransfersAFixedLengthStringAtItsDeclaredWidth()
+    {
+        var output = VB6TestProgram.Run("""
+            Sub Main()
+                Dim feld As String * 6
+                Dim back As String * 6
+                Dim b As Byte
+                Dim i As Integer
+                Dim bytes As String
+                Dim f As Integer
+
+                feld = "AB"
+                f = FreeFile
+                Open "fest.bin" For Binary As #f
+                Put #f, 1, feld
+                Close #f
+
+                f = FreeFile
+                Open "fest.bin" For Binary As #f
+                Get #f, 1, back
+                For i = 1 To LOF(f)
+                    Get #f, i, b
+                    bytes = bytes & Right$("0" & Hex$(b), 2)
+                Next i
+                Close #f
+
+                Debug.Print "[" & back & "]"
+                Debug.Print bytes
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[] { "[AB    ]", "414220202020" },
+            VB6TestProgram.SplitLines(output),
+            output);
+    }
+
     [TestMethod]
     public void EmitManagedApplication_PassesTheSelectedProfileToSequentialTextTransfers()
     {

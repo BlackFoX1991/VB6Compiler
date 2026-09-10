@@ -60,14 +60,14 @@ public sealed class OracleFileLayoutTests
             ("Double", "Double", "CDbl(1.5)"),
             ("Currency", "Currency", "CCur(1.5)"),
             ("Date", "Date", "CDate(\"1999-12-31\")"),
-            ("String variabler Laenge", "String", "\"ABC\"")
+            ("String variabler Laenge", "String", "\"ABC\""),
 
-            // `String * 6` fehlt hier bewusst. Unser Compiler meldet dafuer VB6S0058 -- "Put of
-            // type 'String * 6' is not implemented yet" -- und das ist das gewuenschte Verhalten
-            // fuer eine Luecke, nicht ein Defekt. Es heisst aber, dass die ganze Sonde nicht
-            // uebersetzt, denn ein Vergleich braucht zwei laufende Programme. Der Fall steht
-            // deshalb als eigene Karte (r1-put-fixed-string) und kommt hierher zurueck, sobald
-            // Put ihn traegt.
+            // Dieser Fall fehlte hier, solange unser Compiler dafuer VB6S0058 meldete -- "Put of
+            // type 'String * 6' is not implemented yet". Das war das gewuenschte Verhalten fuer
+            // eine Luecke, hiess aber, dass die ganze Sonde nicht uebersetzt, denn ein Vergleich
+            // braucht zwei laufende Programme. `r1-put-fixed-string` hat sie geschlossen: die
+            // deklarierte Breite ist die Laenge, das Original schreibt 41 42 20 20 20 20.
+            ("String fester Laenge", "String * 6", "\"AB\"")
         };
 
         var declarations = string.Join(
@@ -162,5 +162,99 @@ public sealed class OracleFileLayoutTests
                 differences[label],
                 $"Das Original antwortet für '{label}' inzwischen anders.");
         }
+    }
+
+    /// <summary>
+    /// The mode is what decides whether a String carries a descriptor -- for a variable-length one.
+    /// A <c>String * n</c> does not take part in that distinction, and this case is the measurement
+    /// that says so rather than the assumption: the same six bytes in Random mode as in Binary.
+    ///
+    /// It matters because the pair beside it *does* differ by mode, and a contract that reads "in
+    /// both modes" is worth exactly as much as the run behind it.
+    /// </summary>
+    [TestMethod]
+    public void Oracle_WritesAFixedStringWithoutADescriptorInRandomMode()
+    {
+        if (!VB6Oracle.IsAvailable(out var reason))
+        {
+            if (VB6Oracle.IsRequired)
+            {
+                Assert.Fail(reason);
+            }
+
+            Assert.Inconclusive(reason);
+            return;
+        }
+
+        var body = string.Join(
+            Environment.NewLine,
+            "    vb6Fest = \"AB\"",
+            "    vb6OracleBytes = vb6OraclePath & \"fest.bin\"",
+            "    vb6OracleUnit = FreeFile",
+            "    Open vb6OracleBytes For Random As #vb6OracleUnit Len = 6",
+            "    Put #vb6OracleUnit, 1, vb6Fest",
+            "    Close #vb6OracleUnit",
+            "    vb6OracleUnit = FreeFile",
+            "    Open vb6OracleBytes For Random As #vb6OracleUnit Len = 6",
+            "    Get #vb6OracleUnit, 1, vb6Zurueck",
+            "    Close #vb6OracleUnit",
+            "    Vb6OracleSay \"Random Bytes\", Vb6OracleHex(vb6OracleBytes)",
+            "    Vb6OracleSay \"Random gelesen\", \"[\" & vb6Zurueck & \"]\"");
+
+        var helper = string.Join(
+            Environment.NewLine,
+            "Private vb6Fest As String * 6",
+            "Private vb6Zurueck As String * 6",
+            "Private vb6OracleBytes As String",
+            "Private vb6OracleUnit As Integer",
+            string.Empty,
+            "Public Function Vb6OracleHex(ByVal Pfad As String) As String",
+            "    Dim h As Integer",
+            "    Dim b As Byte",
+            "    Dim s As String",
+            "    Dim i As Long",
+            "    h = FreeFile",
+            "    Open Pfad For Binary As #h",
+            "    For i = 1 To LOF(h)",
+            "        Get #h, i, b",
+            "        s = s & Right$(\"0\" & Hex$(b), 2)",
+            "    Next i",
+            "    Close #h",
+            "    Vb6OracleHex = s",
+            "End Function");
+
+        OracleComparison comparison;
+        try
+        {
+            comparison = VB6Oracle.Ask(body, declarations: helper);
+        }
+        catch (OracleNeedsElevationException exception)
+        {
+            if (VB6Oracle.IsRequired)
+            {
+                Assert.Fail(exception.Message);
+            }
+
+            Assert.Inconclusive(exception.Message);
+            return;
+        }
+
+        Assert.IsTrue(comparison.BothRan, comparison.Describe());
+        Assert.AreEqual(
+            0,
+            comparison.MissingFromOurs.Count,
+            "Unsere Ausgabe fehlt für: " + string.Join(", ", comparison.MissingFromOurs));
+        Assert.AreEqual(0, comparison.Differences.Count, comparison.Describe());
+
+        // Nicht nur "gleich wie das Original", sondern die gemessene Form selbst -- sonst wuerde
+        // ein Fehler, den beide Seiten teilen, hier als Erfolg durchgehen.
+        CollectionAssert.AreEqual(
+            new[] { "414220202020", "[AB    ]" },
+            new[]
+            {
+                comparison.Original.Values.GetValueOrDefault("Random Bytes", "(fehlt)"),
+                comparison.Original.Values.GetValueOrDefault("Random gelesen", "(fehlt)")
+            },
+            comparison.Describe());
     }
 }
