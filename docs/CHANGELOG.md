@@ -9363,3 +9363,42 @@ ersetzt und um den leeren Lesefall ergänzt, der vorher still richtig aussah.
 
 Gegenprobe: Mit zurückgenommener Modusunterscheidung melden Orakelfall **und** E2E-Fall. Kanonischer
 Lauf: 1895/1895 im Standardlauf, 93/93 nativ, 5/5 Orakel, VISIA 40/40, Gate vollständig.
+
+## Der zweite Datei-Layout-Befund ist behoben — `r1-put-fixed-string`
+
+`Put #f, 1, feld` mit `Dim feld As String * 6` meldete `VB6S0058` — „Put of type 'String * 6' is
+not implemented yet". Für eine echte Lücke ist das das gewünschte Verhalten und genau die Regel
+aus `CLAUDE.md`: lieber melden als raten. Es war hier aber keine Lücke, sondern eine **Doppelung,
+die auseinandergelaufen ist**. `Binder.IsTransferableFileType` und
+`UserDefinedTypeFileLayout.IsBinaryScalar` beschreiben dieselbe Menge, und nur die zweite kannte
+den festen String — derselbe Typ war *innerhalb* eines UDT also längst übertragbar und daneben
+abgelehnt. Beide Listen tragen jetzt einen Kommentar, der auf die andere zeigt.
+
+**Was das Original schreibt, gemessen statt hergeleitet:** Ein `String * 6` mit `"AB"` ergibt
+`41 42 20 20 20 20` — genau n Zeichen, mit Leerzeichen aufgefüllt, einbytig, **ohne** Deskriptor.
+
+**Der `Random`-Modus wurde eigens mitgemessen**, weil direkt daneben der Modus den Unterschied
+macht: Ein String variabler Länge trägt dort einen Zeichenzähler (`r1-put-binary-string-layout`),
+ein String fester Länge nicht — dieselben sechs Bytes wie in Binary. Ein Vertrag, der „in beiden
+Modi" sagt, ist genau so viel wert wie der Lauf dahinter.
+
+Daraus folgt die Form der Umsetzung: Die **deklarierte Breite ist die Länge**. Dieser Transfer
+braucht deshalb weder einen Deskriptor noch, beim Lesen, den bisherigen Wert der Zielvariablen —
+und das unterscheidet ihn von `GetString`, das ihn zwei Absätze weiter oben ausdrücklich
+entgegennimmt. Er bekommt eine eigene Runtime-, IR- und Emitterform (`PutFixedString`/
+`GetFixedString`, `FilePutFixedString`/`FileGetFixedString`), damit die Breite ein **Argument**
+ist und nicht eine Annahme darüber, wie lang die Variable gerade ist.
+
+**Die Gegenprobe hat mehr gezeigt als sie sollte.** Mit zurückgenommenem Lowerer-Zweig fallen alle
+drei Fälle — aber nicht mit einem Bytevergleich, sondern mit `InvalidProgramException`, weil
+`FilePut` für diesen Typ keine Überladung hat. Und: Der Binary-E2E-Fall allein hätte den Defekt
+**nicht** gefunden. Die Variable hält ohnehin schon n Zeichen, also sind die Bytes im Binary-Modus
+auch ohne die eigene Form richtig; auffällig wird erst der `Random`-Modus. Das ist derselbe Befund
+wie beim Selbst-Roundtrip einen Eintrag weiter oben, nur eine Ebene höher: Ein Test, der die
+unterscheidende Achse nicht verstellt, belegt nichts.
+
+Damit ist die Fläche „Datei-Layouts" vollständig: 13 von 13 Werten bytegleich mit dem Original,
+und keine der sieben verbliebenen `r1-*`-Karten berührt noch Dateiinhalte.
+
+Kanonischer Lauf: 1899/1899 im Standardlauf, 93/93 nativ, 6/6 Orakel, VISIA 40/40, Gate
+vollständig.

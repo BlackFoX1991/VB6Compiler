@@ -3151,16 +3151,18 @@
       "matrixEntry": "runtime-file-io",
       "milestone": "R1",
       "dependsOn": [],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Put eines Strings fester Laenge",
       "expected": {
         "acceptance": "Put und Get tragen einen String * n und schreiben genau n Zeichen, wie das Original."
       },
-      "verification": "not-yet-verified",
+      "verification": "documented-verified",
       "testRefs": [
-        "tests/VB6.Compiler.Tests/OracleFileLayoutTests.cs"
+        "tests/VB6.Compiler.Tests/OracleFileLayoutTests.cs",
+        "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/FileStringIoExecutionTests.cs"
       ],
-      "notes": "Gefunden am 2026-09-10 beim Bau der Orakelsonde fuer Datei-Layouts. Put eines String * 6 meldet bei uns VB6S0058: 'Put of type String * 6 is not implemented yet; scalar values, arrays with supported elements, Strings, and supported UDT record layouts are transferable.' Das ist das **gewuenschte** Verhalten fuer eine Luecke -- gemeldet statt still etwas Aehnliches getan, genau die Regel aus CLAUDE.md -- und trotzdem eine Luecke: Das Original uebersetzt und schreibt. Der Fall ist deshalb aus OracleFileLayoutTests herausgenommen und nicht etwa uebersprungen worden; ein Orakelvergleich braucht zwei laufende Programme, und ein Fall, der unsere Seite gar nicht uebersetzen laesst, haette die ganze Sonde blockiert. Er kommt dorthin zurueck, sobald Put ihn traegt -- die Bytefrage (n Zeichen, mit Leerzeichen aufgefuellt, in welcher Kodierung) ist dann in derselben Messung mitzubeantworten wie r1-put-binary-string-layout.",
+      "notes": "Gefunden am 2026-09-10 beim Bau der Orakelsonde fuer Datei-Layouts. Put eines String * 6 meldete bei uns VB6S0058: 'Put of type String * 6 is not implemented yet; scalar values, arrays with supported elements, Strings, and supported UDT record layouts are transferable.' Das war das **gewuenschte** Verhalten fuer eine Luecke -- gemeldet statt still etwas Aehnliches getan, genau die Regel aus CLAUDE.md -- und trotzdem eine Luecke: Das Original uebersetzt und schreibt. Der Fall war deshalb aus OracleFileLayoutTests herausgenommen und nicht etwa uebersprungen worden; ein Orakelvergleich braucht zwei laufende Programme, und ein Fall, der unsere Seite gar nicht uebersetzen laesst, haette die ganze Sonde blockiert. Abgeschlossen am 2026-09-10. Die Ursache war eine Doppelung, die auseinandergelaufen ist: Binder.IsTransferableFileType und UserDefinedTypeFileLayout.IsBinaryScalar beschreiben dieselbe Menge, und nur die zweite kannte den festen String -- weshalb derselbe Typ *innerhalb* eines UDT laengst uebertragbar war und daneben abgelehnt wurde. Die Bytefrage ist in derselben Messung beantwortet worden: Ein String * 6 mit 'AB' schreibt 41 42 20 20 20 20, also genau n Zeichen, mit Leerzeichen aufgefuellt, einbytig, **ohne** Deskriptor. Der Random-Modus wurde eigens mitgemessen statt hergeleitet, weil er direkt daneben den Unterschied macht: Ein String variabler Laenge traegt dort einen Zeichenzaehler (r1-put-binary-string-layout), ein String fester Laenge nicht -- dieselben sechs Bytes wie in Binary. Die deklarierte Breite ist die Laenge, weshalb dieser Transfer weder einen Deskriptor noch, beim Lesen, den bisherigen Wert der Zielvariablen braucht; das unterscheidet ihn von GetString. Umgesetzt als eigene Runtime-, IR- und Emitterform (PutFixedString/GetFixedString, FilePutFixedString/FileGetFixedString) statt als Sonderfall im Transfer variabler Laenge, damit die Breite ein Argument ist und nicht eine Annahme ueber den Variableninhalt. Gegenprobe: Mit zurueckgenommenem Lowerer-Zweig fallen alle drei Faelle -- und zwar nicht mit einem Bytevergleich, sondern mit InvalidProgramException, weil FilePut fuer diesen Typ keine Ueberladung hat. Bemerkenswert daran ist, dass der Binary-E2E-Fall den Defekt allein *nicht* gefunden haette: Die Variable haelt ohnehin schon n Zeichen, also faellt dort nur der Random-Modus auf.",
       "title": "Put eines Strings fester Laenge"
     },
     {
@@ -3663,7 +3665,7 @@
       },
       "implementation": "partial",
       "verification": "not-yet-verified",
-      "gap": "r1-put-fixed-string: Put eines Strings fester Laenge; r1-chdir-missing-directory: Fehlernummer von ChDir bei fehlendem Verzeichnis",
+      "gap": "r1-chdir-missing-directory: Fehlernummer von ChDir bei fehlendem Verzeichnis",
       "tests": [
         "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
         "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs",

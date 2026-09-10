@@ -16,8 +16,8 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist die einzige aktive Managed-Roadmap R0–R7 in `docs/ROADMAP.md`.
 <!-- verification:claude-matrix:begin -->
-Die Matrix enthält 184 Erwartungen: 167 `implemented`, 0 `partial`, 17 `planned`;
-167 `documented-verified`, 17 `not-yet-verified`, 0 `oracle-verified`.
+Die Matrix enthält 184 Erwartungen: 168 `implemented`, 0 `partial`, 16 `planned`;
+168 `documented-verified`, 16 `not-yet-verified`, 0 `oracle-verified`.
 <!-- verification:claude-matrix:end -->
 Offene Karten tragen `milestone` und `dependsOn`; sie schließen ausdrücklich
 Objektlebensdauer, gespeicherte Zeiger und externe COM-/ActiveX-Verträge ein.
@@ -316,8 +316,8 @@ Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite 
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
 <!-- verification:claude-measurements:begin -->
-Stand der Prüfung 2026-09-10 auf `1cbec42` mit nicht committeten Änderungen: 1895 Standardfälle in 13 Projekten,
-1895 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: 93/93 bestanden, 0 übersprungen.
+Stand der Prüfung 2026-09-10 auf `897a3df` mit nicht committeten Änderungen: 1899 Standardfälle in 13 Projekten,
+1899 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: 93/93 bestanden, 0 übersprungen.
 VISIA: 40/40 Projektitems, 0 Diagnosen.
 Vollständiges Gate: True. Laufbericht: `artifacts/verification-report.json`.
 <!-- verification:claude-measurements:end -->
@@ -608,6 +608,15 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   A4 zweimal hintereinander vorbeigelaufen: Nachdem der Parser die Deklaration annahm, fehlte
   das Auffüllen bei einfacher Zuweisung, und danach fehlte noch der Anfangswert für alles außer
   dem UDT-Member. Wer hier etwas anfasst, misst alle drei gegen das UDT-Member als Referenz.
+  **Die Datei-Übertragung ist die vierte Stelle, und sie fiel aus demselben Muster heraus:**
+  `Put` eines eigenständigen `String * n` meldete `VB6S0058`, während derselbe Typ *innerhalb*
+  eines UDT längst übertragbar war — `Binder.IsTransferableFileType` und
+  `UserDefinedTypeFileLayout.IsBinaryScalar` beschreiben dieselbe Menge und waren
+  auseinandergelaufen. Gemessen am Original: die **deklarierte Breite ist die Länge**, also genau
+  n Zeichen, mit Leerzeichen aufgefüllt, einbytig, ohne Deskriptor — und zwar in Binary *und* in
+  Random, anders als beim String variabler Länge daneben. Wer das prüft, prüft den `Random`-Modus
+  mit: Im Binary-Modus hält die Variable ohnehin schon n Zeichen, dort sind die Bytes auch mit
+  falscher Übersetzung richtig.
 - **Fehlernummer 5 ist der Sammelwert für „nicht zugeordnet".** `VBErrors.Set` bildet jede
   unbekannte Ausnahme darauf ab, deshalb sieht ein falsches 5 wie ein Ergebnis aus. Beim
   Breitendurchgang waren fünf gemessene 5 falsch (richtig wären 6, 9, 13, 91, 94) und vier
