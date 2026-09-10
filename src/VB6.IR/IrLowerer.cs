@@ -1789,6 +1789,20 @@ public static class IrLowerer
                                 LowerExpression(get.FileNumber),
                                 get.Position is null ? new IrNullExpression(TypeSymbol.LongLong) : LowerExpression(get.Position))));
                     }
+                    else if (get.Target.Type is FixedLengthStringTypeSymbol getFixedString)
+                    {
+                        // Die deklarierte Breite ist die Leseanforderung -- ein String * n weiss
+                        // immer, wie viel er ist, und braucht deshalb weder einen Deskriptor noch
+                        // seinen bisherigen Wert.
+                        Emit(new IrStoreInstruction(
+                            LowerPlace(get.Target),
+                            Runtime(
+                                IrRuntimeMethod.FileGetFixedString,
+                                TypeSymbol.String,
+                                LowerExpression(get.FileNumber),
+                                get.Position is null ? new IrNullExpression(TypeSymbol.LongLong) : LowerExpression(get.Position),
+                                new IrConstantExpression(getFixedString.Length, TypeSymbol.Long))));
+                    }
                     else if (get.Target.Type == TypeSymbol.String)
                     {
                         // Ein String im Binary-Modus liest so viele Zeichen, wie die Variable
@@ -1825,6 +1839,19 @@ public static class IrLowerer
                     else if (put.Value.Type is UserDefinedTypeSymbol putType)
                     {
                         LowerBinaryRecordPut(put, putType);
+                    }
+                    else if (put.Value.Type is FixedLengthStringTypeSymbol putFixedString)
+                    {
+                        // Gemessen am Original am 2026-09-10: ein String * 6 mit "AB" schreibt
+                        // 41 42 20 20 20 20 -- genau n Zeichen, aufgefuellt, ohne Deskriptor, und
+                        // zwar in beiden Modi.
+                        Emit(new IrEvaluateInstruction(Runtime(
+                            IrRuntimeMethod.FilePutFixedString,
+                            TypeSymbol.Error,
+                            LowerExpression(put.FileNumber),
+                            put.Position is null ? new IrNullExpression(TypeSymbol.LongLong) : LowerExpression(put.Position),
+                            LowerExpression(put.Value),
+                            new IrConstantExpression(putFixedString.Length, TypeSymbol.Long))));
                     }
                     else if (put.Value.Type == TypeSymbol.Variant)
                     {
