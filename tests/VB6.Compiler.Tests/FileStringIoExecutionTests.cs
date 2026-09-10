@@ -7,22 +7,68 @@ namespace VB6.Compiler.Tests;
 [TestClass]
 public sealed class FileStringIoExecutionTests
 {
+    /// <summary>
+    /// The VB6 rule a round trip cannot show: in Binary mode the target's own length is the read
+    /// request.
+    ///
+    /// This case used to read into an unset variable and expect the whole string back. It passed
+    /// because <c>Put</c> wrote a length descriptor that <c>Get</c> then read -- a pair confirming
+    /// itself. The original does neither: measured on 2026-09-10, reading a six-byte file into a
+    /// three-character variable yields three characters, and reading it into an empty one yields
+    /// nothing at all. Both are asserted here, because the empty case is the one that silently
+    /// looked right before.
+    /// </summary>
     [TestMethod]
-    public void EmitManagedApplication_WritesAndReadsVariableLengthStrings()
+    public void EmitManagedApplication_SizesABinaryStringReadByTheTargetVariable()
     {
         var output = VB6TestProgram.Run("""
             Sub Main()
                 Dim path As String
                 Dim written As String
-                Dim readBack As String
+                Dim sized As String
+                Dim unset As String
 
                 path = "string.bin"
-                written = "Grüße"
+                written = "ABCDEF"
                 Open path For Binary As #1
                 Put #1, 1, written
                 Close #1
 
+                sized = "xyz"
                 Open path For Binary As #1
+                Get #1, 1, sized
+                Close #1
+                Debug.Print sized
+
+                Open path For Binary As #1
+                Get #1, 1, unset
+                Close #1
+                Debug.Print "[" & unset & "]"
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(new[] { "ABC", "[]" }, VB6TestProgram.SplitLines(output), output);
+    }
+
+    /// <summary>
+    /// Random mode keeps the descriptor, so a read there does not depend on the target's length.
+    /// The same program shape as above with one word changed gives a different answer, which is
+    /// exactly the distinction the previous single round-trip case could not make.
+    /// </summary>
+    [TestMethod]
+    public void EmitManagedApplication_ReadsARandomStringFromItsDescriptor()
+    {
+        var output = VB6TestProgram.Run("""
+            Sub Main()
+                Dim written As String
+                Dim readBack As String
+
+                written = "Grüße"
+                Open "string.rnd" For Random As #1 Len = 64
+                Put #1, 1, written
+                Close #1
+
+                Open "string.rnd" For Random As #1 Len = 64
                 Get #1, 1, readBack
                 Close #1
                 Debug.Print readBack

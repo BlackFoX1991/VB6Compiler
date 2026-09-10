@@ -18,25 +18,17 @@ namespace VB6.Compiler.Tests;
 public sealed class OracleFileLayoutTests
 {
     /// <summary>
-    /// What differs today, with the original's answer. Empty is the goal.
+    /// What differs today, with the original's answer. Empty is the goal, and since
+    /// <c>r1-put-binary-string-layout</c> was closed it **is** empty.
     ///
-    /// One entry out of twelve, and the eleven that agree carry weight: Integer, Long, Byte,
-    /// Boolean, Single, Double, Currency and Date come out byte-identical, in both signs where a
-    /// sign exists. The numeric layouts were right all along; the string layout is wrong twice
-    /// over.
-    ///
-    /// <c>Put #f, 1, "ABC"</c> in Binary mode gives <c>414243</c> in the original -- three ANSI
-    /// bytes, no prefix -- and <c>0300410042004300</c> here: a two-byte length followed by UTF-16.
-    /// The length prefix belongs to **Random** mode, and the encoding is wrong regardless of mode.
-    /// A data file written by a VB6 program is therefore unreadable by ours and the other way
-    /// round, which is the exact failure this compiler exists to prevent. Open as
-    /// <c>r1-put-binary-string-layout</c>; Random mode is a separate question and was not measured
-    /// here.
+    /// It held one entry: <c>Put #f, 1, "ABC"</c> in Binary mode gave <c>414243</c> in the
+    /// original -- three ANSI bytes, no prefix -- and <c>0300410042004300</c> here, a two-byte
+    /// length followed by UTF-16. The prefix belongs to Random mode and the encoding was wrong in
+    /// both. The entry disappearing is what made this test fail and forced the list to shrink,
+    /// which is the whole reason it is written as a table with a known remainder rather than as a
+    /// set of skipped cases.
     /// </summary>
-    private static readonly Dictionary<string, string> KnownDeviations = new(StringComparer.Ordinal)
-    {
-        ["String variabler Laenge"] = "414243"
-    };
+    private static readonly Dictionary<string, string> KnownDeviations = new(StringComparer.Ordinal);
 
     [TestMethod]
     public void Oracle_WritesTheSameBytesForEveryRandomAccessValue()

@@ -546,23 +546,68 @@ public sealed class FileRuntimeTests
         });
     }
 
+    /// <summary>
+    /// A Binary-mode String has no length descriptor, and the read is sized by the variable.
+    ///
+    /// This case used to assert the opposite -- a two-byte prefix and a UTF-16 payload -- and it
+    /// passed because <c>Put</c> and <c>Get</c> agreed with each other. A round trip only ever
+    /// confirms itself; measured against a real VB6 SP6 on 2026-09-10, both halves were wrong.
+    /// The original writes <c>41 42 43</c> for <c>"ABC"</c> and reads exactly as many characters
+    /// as the target already holds, which is why the target here is pre-sized and why an empty
+    /// one is asserted to read nothing.
+    /// </summary>
     [TestMethod]
-    public void PutAndGet_RoundTripVariableLengthStringAndContinueFromPrefixPayload()
+    public void PutAndGetInBinaryModeUseTheCharactersWithoutADescriptor()
     {
         WithTemporaryFile(path =>
         {
             var value = "Gr" + (char)252 + (char)223 + "e";
 
             VBFiles.OpenBinary(1, path);
-            VBFiles.Put(1, 1, value);
+            VBFiles.Put(1, 1, value, VBCompatibilityProfile.VB6Sp6);
             VBFiles.Close(1);
 
-            VBFiles.OpenBinary(1, path);
-            Assert.AreEqual(value, VBFiles.GetString(1, 1));
-            Assert.AreEqual(1L + sizeof(ushort) + value.Length * sizeof(char), VBFiles.Position(1));
+            // Kein Deskriptor: Die Datei ist genau so lang wie ihr Inhalt in der Codepage.
+            var ansi = VBStrings.GetAnsiEncoding(VBCompatibilityProfile.VB6Sp6);
+            CollectionAssert.AreEqual(ansi.GetBytes(value), File.ReadAllBytes(path));
 
-            VBFiles.Seek(1, 1);
-            Assert.AreEqual(value, VBFiles.GetString(1, null));
+            VBFiles.OpenBinary(1, path);
+            var sized = new string(' ', value.Length);
+            Assert.AreEqual(value, VBFiles.GetString(1, 1, sized, VBCompatibilityProfile.VB6Sp6));
+            Assert.AreEqual(1L + ansi.GetByteCount(value), VBFiles.Position(1));
+            VBFiles.Close(1);
+
+            // Ein leeres Ziel ist eine Anforderung ueber null Zeichen, kein Wunsch nach allem.
+            VBFiles.OpenBinary(1, path);
+            Assert.AreEqual(
+                string.Empty,
+                VBFiles.GetString(1, 1, string.Empty, VBCompatibilityProfile.VB6Sp6));
+            VBFiles.Close(1);
+        });
+    }
+
+    /// <summary>
+    /// Random mode is the other half of the same contract: there a record carries a two-byte
+    /// character count, and the original writes <c>03 00 41 42 43</c> for <c>"ABC"</c> -- the
+    /// descriptor, then the characters in the code page rather than in UTF-16.
+    /// </summary>
+    [TestMethod]
+    public void PutInRandomModeKeepsTheTwoByteDescriptor()
+    {
+        WithTemporaryFile(path =>
+        {
+            VBFiles.OpenRandom(1, path, 32);
+            VBFiles.Put(1, 1, "ABC", VBCompatibilityProfile.VB6Sp6);
+            VBFiles.Close(1);
+
+            var written = File.ReadAllBytes(path);
+            CollectionAssert.AreEqual(
+                new byte[] { 0x03, 0x00, 0x41, 0x42, 0x43 },
+                written.Take(5).ToArray(),
+                "Random traegt den Zeichenzaehler, Binary nicht.");
+
+            VBFiles.OpenRandom(1, path, 32);
+            Assert.AreEqual("ABC", VBFiles.GetString(1, 1, string.Empty, VBCompatibilityProfile.VB6Sp6));
             VBFiles.Close(1);
         });
     }
