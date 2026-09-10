@@ -964,6 +964,21 @@ public sealed class WinFormsHost : IVB6Host, IDisposable
         }
     }
 
+    /// <summary>
+    /// The window this host built for a generated form or control, or null when it has built none.
+    ///
+    /// It exists for the OLE presentation, which has to re-parent that window into a foreign
+    /// container. Deliberately non-creating: asking for a window is not a reason to make one, and
+    /// a caller that gets null has learned something -- the designer envelope never ran.
+    /// </summary>
+    internal Form? TryGetWindow(object target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        return _bindings.TryGetValue(target, out var binding) && !binding.Form.IsDisposed
+            ? binding.Form
+            : null;
+    }
+
     public void Load(object target)
     {
         ThrowIfDisposed();
