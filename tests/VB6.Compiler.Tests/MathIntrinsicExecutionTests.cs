@@ -1,5 +1,6 @@
 namespace VB6.Compiler.Tests;
 
+using System.Globalization;
 using VB6.Runtime;
 
 [TestClass]
@@ -79,13 +80,27 @@ public sealed class MathIntrinsicExecutionTests
             output);
     }
 
+    /// <summary>
+    /// The values are the same in both profiles; the separator is not, and that is the point.
+    ///
+    /// This case asserted one expectation for both profiles, which made the defect behind
+    /// <c>r1-cstr-locale</c> look like a decided property. Measured against VB6 SP6 on 2026-09-11
+    /// under a German LCID: <c>Debug.Print</c> writes <c>0,3333333</c>, and so do <c>CStr</c>,
+    /// <c>Format</c> and the <c>&amp;</c> operator. The deterministic profile stays invariant by
+    /// decision, so the expectation for the SP6 side comes from the ambient culture rather than
+    /// from a literal -- a machine with an English LCID gets the same text in both and is still
+    /// right.
+    /// </summary>
     [TestMethod]
-    public void EmitManagedApplications_KeepDebugAndFinancialOutputStableAcrossProfiles()
+    public void EmitManagedApplications_FollowTheProfileSeparatorInDebugOutput()
     {
         const string source = """
             Sub Main()
                 Debug.Print 1234.5
                 Debug.Print PMT(0, 3, 600)
+                Debug.Print CStr(1234.5)
+                Debug.Print "[" & 1234.5 & "]"
+                Debug.Print Str$(1234.5)
             End Sub
             """;
 
@@ -98,9 +113,23 @@ public sealed class MathIntrinsicExecutionTests
                 CompatibilityProfile = VBCompatibilityProfile.VB6Sp6
             });
 
-        var expected = new[] { "1234.5", "-200" };
-        CollectionAssert.AreEqual(expected, VB6TestProgram.SplitLines(VB6TestProgram.Run(deterministic)));
-        CollectionAssert.AreEqual(expected, VB6TestProgram.SplitLines(VB6TestProgram.Run(vb6Sp6)));
+        CollectionAssert.AreEqual(
+            new[] { "1234.5", "-200", "1234.5", "[1234.5]", "1234.5" },
+            VB6TestProgram.SplitLines(VB6TestProgram.Run(deterministic)));
+
+        var separator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "1234" + separator + "5",
+                "-200",
+                "1234" + separator + "5",
+                "[1234" + separator + "5]",
+
+                // Str bleibt auch hier invariant -- die eine Funktion, die dem System nicht folgt.
+                "1234.5"
+            },
+            VB6TestProgram.SplitLines(VB6TestProgram.Run(vb6Sp6)));
     }
 
     [TestMethod]

@@ -104,7 +104,7 @@ public sealed class DateTimeIntrinsicExecutionTests
             Sub Main()
                 Debug.Print Format$(DateValue("2020-01-02"), "yyyy-mm-dd")
                 Debug.Print Format$(TimeValue("18:00:00"), "hh:nn:ss")
-                Debug.Print DateAdd("d", 1.6, CDate(43832))
+                Debug.Print Format$(DateAdd("d", 1.6, CDate(43832)), "yyyy-mm-dd")
                 Debug.Print WeekdayName(4, False, vbMonday)
                 Debug.Print MonthName(1)
             End Sub
@@ -117,6 +117,12 @@ public sealed class DateTimeIntrinsicExecutionTests
 
         var output = VB6TestProgram.SplitLines(VB6TestProgram.Run(compilation));
 
+        // Die dritte Zeile stand als blankes 'Debug.Print DateAdd(...)' hier und pruefte damit
+        // zwei Dinge auf einmal. Seit Debug.Print im SP6-Profil der System-LCID folgt, waere sie
+        // von der Maschine abhaengig -- deshalb das ausdrueckliche Muster. Der Wert selbst ist
+        // **nicht** der des Originals: VB6 schneidet den gebrochenen Intervallanteil ab und
+        // antwortet 2020-01-03, wir runden auf 2020-01-04. Offen als
+        // r1-dateadd-fractional-interval; hier steht der Ist-Wert als Regressionsanker.
         Assert.AreEqual(5, output.Length, string.Join(" | ", output));
         CollectionAssert.AreEqual(new[] { "2020-01-02", "18:00:00", "2020-01-04" }, output[..3]);
         Assert.IsFalse(string.IsNullOrWhiteSpace(output[3]));

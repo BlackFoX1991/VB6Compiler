@@ -16,40 +16,28 @@ namespace VB6.Compiler.Tests;
 public sealed class OracleNumberFormattingTests
 {
     /// <summary>
-    /// What differs today, with the original's answer. Empty is the goal.
+    /// What differs today, with the original's answer. Empty is the goal, and since the four
+    /// output cards were closed on 2026-09-11 it **is** empty.
     ///
-    /// Twelve entries, four causes -- and the first measurement here refuted the obvious reading
-    /// of the list. A comma against a point looks like the decided profile difference and is not:
-    /// this comparison already runs in the <c>vb6-sp6</c> profile, and <c>Format</c> below does
-    /// answer with a comma. So <c>CStr</c> ignoring the locale is a defect, not a decision.
+    /// It held twelve entries from four causes, and the first measurement here refuted the obvious
+    /// reading of the list. A comma against a point looks like the decided profile difference and
+    /// is not: this comparison already runs in the <c>vb6-sp6</c> profile, and <c>Format</c>
+    /// answered with a comma in the same run. So <c>CStr</c> ignoring the locale was a defect, not
+    /// a decision.
     ///
     /// <list type="bullet">
-    /// <item><c>r1-cstr-locale</c>: <c>CStr</c> keeps the invariant separator where the profile
-    /// asks for the system's. <c>Str</c> is correctly invariant -- the original itself answers
+    /// <item><c>r1-cstr-locale</c>: <c>CStr</c> kept the invariant separator where the profile asks
+    /// for the system's. <c>Str</c> was correctly invariant -- the original itself answers
     /// <c>.3333333</c> with a point while <c>CStr</c> answers with a comma.</item>
     /// <item><c>r1-number-notation-threshold</c>: the original writes 0,00001 in full where we
-    /// switch to 1E-05.</item>
+    /// switched to 1E-05.</item>
     /// <item><c>r1-format-general-single</c>: <c>Format(…, "General Number")</c> on a Single gives
-    /// seven significant digits in VB6 and fifteen here -- the very staircase whose stated reason
-    /// was falsified.</item>
+    /// seven significant digits in VB6 and gave fifteen here -- the very staircase whose stated
+    /// reason was falsified.</item>
     /// <item><c>r1-str-leading-zero</c>: <c>Str</c> drops the leading zero below one.</item>
     /// </list>
     /// </summary>
-    private static readonly Dictionary<string, string> KnownDeviations = new(StringComparer.Ordinal)
-    {
-        ["CStr Single Drittel"] = "0,3333333",
-        ["CStr Double Drittel"] = "0,333333333333333",
-        ["CStr Single klein"] = "0,1",
-        ["CStr Double klein"] = "0,1",
-        ["CStr Single gross"] = "1,234568E+08",
-        ["CStr Currency"] = "1,2345",
-        ["CStr Currency gerundet"] = "1,2346",
-        ["CStr negativ Single"] = "-0,3333333",
-        ["CStr Exponent klein"] = "0,00001",
-        ["Format General Single"] = "0,3333333",
-        ["Str Single"] = ".3333333",
-        ["Str Double"] = ".333333333333333"
-    };
+    private static readonly Dictionary<string, string> KnownDeviations = new(StringComparer.Ordinal);
 
     [TestMethod]
     public void Oracle_AgreesOnHowNumbersBecomeText()
@@ -95,7 +83,41 @@ public sealed class OracleNumberFormattingTests
             ("Str Single", "Str(CSng(1) / CSng(3))"),
             ("Str Double", "Str(CDbl(1) / CDbl(3))"),
             ("Str positiv", "Str(CLng(42))"),
-            ("Str negativ", "Str(CLng(-42))")
+            ("Str negativ", "Str(CLng(-42))"),
+
+            // Die Schwelle zur Exponentialschreibweise, von beiden Seiten und in beiden Typen.
+            // Sie ist die Stelle, an der .NETs G-Spezifizierer und VB6 auseinandergehen, und ein
+            // einzelner Wert haette sie nicht festgelegt: Ein Single mit 1E-5 wird ausgeschrieben,
+            // derselbe Exponent mit sieben Mantissenstellen nicht.
+            ("Schwelle Double 1e-15", "CStr(CDbl(0.000000000000001))"),
+            ("Schwelle Double 1e-16", "CStr(CDbl(0.0000000000000001))"),
+            ("Schwelle Double 1e14", "CStr(CDbl(100000000000000#))"),
+            ("Schwelle Double 1e15", "CStr(CDbl(1000000000000000#))"),
+            ("Schwelle Double 15 Neunen", "CStr(CDbl(999999999999999#))"),
+            ("Schwelle Double 16 Stellen", "CStr(CDbl(1999999999999999#))"),
+            ("Schwelle Single 1e-7", "CStr(CSng(0.0000001))"),
+            ("Schwelle Single 1e-8", "CStr(CSng(0.00000001))"),
+            ("Schwelle Single 1e6", "CStr(CSng(1000000))"),
+            ("Schwelle Single 1e7", "CStr(CSng(10000000))"),
+            ("Schwelle Single krumm klein", "CStr(CSng(0.00000123))"),
+            ("Schwelle Single knapp klein", "CStr(CSng(0.0000012))"),
+            ("Schwelle Single sieben Stellen", "CStr(CSng(1234567))"),
+            ("Schwelle Single acht Stellen", "CStr(CSng(12345678))"),
+            ("Schwelle Double gemischt", "CStr(CDbl(12345.6789012345))"),
+            ("Schwelle Double dreistellig", "CStr(CDbl(0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001))"),
+
+            // Str, die drei Regeln einzeln: keine Null vor dem Trenner, invariante Ziffern trotz
+            // SP6-Profil, und die Vorzeichenspalte nur fuer Zahlen.
+            ("Str Currency", "Str(CCur(0.25))"),
+            ("Str negativ klein", "Str(CDbl(-0.00001))"),
+            ("Str Null", "Str(CDbl(0))"),
+            ("Str Boolean", "Str(True)"),
+            ("Str Exponent", "Str(CSng(0.00000001))"),
+
+            // General Number ist gemessen dasselbe wie CStr -- auch an den Schwellen.
+            ("Format General Schwelle", "Format(CDbl(0.00001), \"General Number\")"),
+            ("Format General Single gross", "Format(CSng(123456789), \"General Number\")"),
+            ("Format General Currency", "Format(CCur(1.2345), \"General Number\")")
         };
 
         var body = string.Join(
