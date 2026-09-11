@@ -119,12 +119,11 @@ public sealed class DateTimeIntrinsicExecutionTests
 
         // Die dritte Zeile stand als blankes 'Debug.Print DateAdd(...)' hier und pruefte damit
         // zwei Dinge auf einmal. Seit Debug.Print im SP6-Profil der System-LCID folgt, waere sie
-        // von der Maschine abhaengig -- deshalb das ausdrueckliche Muster. Der Wert selbst ist
-        // **nicht** der des Originals: VB6 schneidet den gebrochenen Intervallanteil ab und
-        // antwortet 2020-01-03, wir runden auf 2020-01-04. Offen als
-        // r1-dateadd-fractional-interval; hier steht der Ist-Wert als Regressionsanker.
+        // von der Maschine abhaengig -- deshalb das ausdrueckliche Muster. Der Wert stand bis zum
+        // 2026-09-11 auf 2020-01-04 und war damit ein Regressionsanker fuer die Rundung; das
+        // Original schneidet den gebrochenen Intervallanteil ab und antwortet 2020-01-03.
         Assert.AreEqual(5, output.Length, string.Join(" | ", output));
-        CollectionAssert.AreEqual(new[] { "2020-01-02", "18:00:00", "2020-01-04" }, output[..3]);
+        CollectionAssert.AreEqual(new[] { "2020-01-02", "18:00:00", "2020-01-03" }, output[..3]);
         Assert.IsFalse(string.IsNullOrWhiteSpace(output[3]));
         Assert.IsFalse(string.IsNullOrWhiteSpace(output[4]));
     }
