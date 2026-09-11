@@ -9402,3 +9402,53 @@ und keine der sieben verbliebenen `r1-*`-Karten berührt noch Dateiinhalte.
 
 Kanonischer Lauf: 1899/1899 im Standardlauf, 93/93 nativ, 6/6 Orakel, VISIA 40/40, Gate
 vollständig.
+
+## Der Ergebnistyp der Division folgt dem Original — `r1-division-result-type`
+
+Der schwerste Befund, der einen **Wert** verfälschte: `/` rechnete bei uns in `Single`, sobald
+beide Operanden schmal waren. `CStr(1 / 3)` ergab `0.3333333` statt fünfzehn Stellen, und das in
+jeder `Integer / Integer`-Division.
+
+**Gemessen wurde diesmal das vollständige Kreuzprodukt** — 121 Operandenpaare über `Byte`,
+`Integer`, `Long`, `Single`, `Double`, `Currency`, `Boolean`, `Date`, `Variant`(Integer),
+`Variant`(Double) und `String`. Das war nötig, denn die Regel ist schmaler als **beide** Fassungen,
+die vorher im Umlauf waren:
+
+- Nicht „beide Operanden schmal" — das war unsere, und sie macht `Integer / Integer` falsch.
+- Nicht die dokumentierte „eine Seite `Single`, die andere nicht `Long`, `Currency` oder `Decimal`"
+  — `Single / Double` und `Single / Date` sind gemessen `Double`.
+- Sondern: **`Double`, außer eine Seite ist `Single` und die andere nicht breiter** (`Byte`,
+  `Integer`, `Boolean`, `Single`, oder ein `Variant` mit einem solchen Inhalt).
+
+Die Lehre steckt in der Form der Messung, nicht im Ergebnis: **Die Diagonale allein besteht unter
+allen drei Regeln.** Eine Tabelle aus gleichtypigen Paaren hätte auch die falsche Regel bestätigt —
+nur die gemischten Paare unterscheiden sie. Genau deshalb hat der Fehler zwei Prüfungen überlebt.
+
+Die Entscheidung fällt an zwei Stellen und ist deshalb an zwei Stellen umgesetzt: statisch im
+Binder (`IsSingleDivisionResult`) und dynamisch in `VBVariantArithmetic`, wo der Subtyp eines
+Variant erst zur Laufzeit bekannt ist. Die Präzision ist getrennt gemessen worden, weil eine
+`TypeName`-Tabelle nicht sagt, ob der Wert dem Typ folgt: `CStr` über zehn Divisionen, Ziffer für
+Ziffer gleich. Was übrig bleibt, sind das Dezimalkomma des Originals gegen unseren Punkt
+(`r1-cstr-locale`) und die führende Null bei `Str` (`r1-str-leading-zero`) — beide eigene Karten,
+und in diesem Fall ausdrücklich wegnormalisiert statt stillschweigend.
+
+**Drei bestehende Tests trugen den Defekt als Erwartung**, einer davon hieß
+`PromotesIntegerVariantDivisionToSingle`. Sie waren Regressionsnachweise für eine Zusage, die nie
+gegen ein Original geprüft war — dieselbe Lücke, vor der `CLAUDE.md` an drei Stellen warnt, diesmal
+in der Prüfung selbst. Sie sind umgeschrieben und um die unterscheidenden Paare ergänzt.
+
+**Die Achse `oracle-verified` ist damit erstmals belegt.** Ihre ganze beschriebene Fläche steht als
+Orakelfall in der Suite und besteht ohne Rest. Der Wächter
+`Matrix_KeepsOracleVerificationEmptyUntilThereIsAnOracle`, der die Achse bis dahin auf null hielt,
+ist durch `Matrix_BacksEveryOracleVerificationWithAnOracleCase` ersetzt — genau so, wie sein
+eigener Kommentar es verlangte: durch Löschen der Zusicherung, nicht durch Ändern einer Zahl.
+
+Gegenprobe: Mit der alten Regel melden der Orakelfall (5 Abweichungen), der Präzisionsfall (3) und
+der E2E-Fall.
+
+Kanonischer Lauf: 1902/1902 im Standardlauf, 93/93 nativ, 8/8 Orakel, VISIA 40/40, Gate
+vollständig. Der erste Versuch meldete 92/93 nativ, und zwar an
+`HostBridgesNativeRichTextMouseDownWithParameterizedComEventInX86` mit `Shift = 1`: Das native
+Control liest diesen Parameter über `GetKeyState` aus dem **physischen** Tastaturzustand statt aus
+der synthetischen Nachricht. Isoliert sofort wieder grün; als Falle notiert, weil die Meldung wie
+eine Regression im Eventpfad aussieht.

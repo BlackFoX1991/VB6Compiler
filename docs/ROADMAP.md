@@ -21,14 +21,14 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-10 auf `main` / `897a3df` mit nicht committeten Änderungen, Lauf `20260910T191559Z-7175e83b`:
+Messung vom 2026-09-11 auf `main` / `2c7c469` mit nicht committeten Änderungen, Lauf `20260911T061312Z-bfa0eacc`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1899 Fälle: 1899 bestanden, 0 fehlgeschlagen, 0 übersprungen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1902 Fälle: 1902 bestanden, 0 fehlgeschlagen, 0 übersprungen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 93/93 bestanden, 0 übersprungen | Getrennter x86-Lauf der WinForms-Tests |
-| Orakel-Gegenpruefung gegen VB6 SP6 | 6/6 bestanden, 0 übersprungen | Vergleich gegen VB6 SP6; deckt nur die Fläche ab, die ein Orakelfall stellt |
+| Orakel-Gegenpruefung gegen VB6 SP6 | 8/8 bestanden, 0 übersprungen | Vergleich gegen VB6 SP6; deckt nur die Fläche ab, die ein Orakelfall stellt |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
 Vollständiges Gate (Standardlauf und nativer x86-Lauf auf demselben Quellstand): **True**.
@@ -42,8 +42,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **184 Erwartungen**, davon **168 implemented**, **0 partial** und **16 planned**;
-**168/184 documented-verified**, 16 `not-yet-verified`, 0 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **184 Erwartungen**, davon **169 implemented**, **0 partial** und **15 planned**;
+**168/184 documented-verified**, 15 `not-yet-verified`, 1 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -105,8 +105,12 @@ Die Quelle für Karten, Status und Abhängigkeiten ist
   `oracle-verified`, wenn ein Fall in `tests/VB6.Compiler.Tests/Oracle*Tests.cs` **ihre ganze
   beschriebene Fläche** gegen das Original stellt und ohne Abweichung besteht. Ein Durchgang mit
   bekanntem Rest reicht nicht — dann bleibt die Erwartung `documented-verified` und der Rest wird
-  eine Karte. Die Achse steht deshalb weiterhin auf 0; die vier bisherigen Durchgänge haben je
-  einen Rest gefunden.
+  eine Karte. Die ersten vier Durchgänge fanden je einen Rest und hielten die Achse deshalb auf 0.
+  Seit dem 2026-09-10 steht `r1-division-result-type` als erste Erwartung darauf: alle 121
+  Operandenpaare von `/` und die Präzision des Ergebniswerts, ohne Abweichung. Mechanisch geprüft
+  wird davon die eine Hälfte — eine `oracle-verified`-Erwartung muss einen Fall in
+  `tests/VB6.Compiler.Tests/Oracle*Tests.cs` nennen; dass dieser Fall die **ganze** Fläche stellt,
+  bleibt eine Beurteilung.
 - Neue Restkarten besitzen `milestone` und `dependsOn`. IDs bestehender Erwartungen bleiben
   stabil. Die Karte `l1-02-a-language-grammar-context` bezeichnet jetzt ausschließlich ihren
   gemessenen Modul-Sichtbarkeitsvertrag; der abgegrenzte R1-Sprachumfang ist in
@@ -540,7 +544,7 @@ Was die vier Durchgänge abgedeckt haben, und was sie **nicht** abdecken:
 
 | Fläche | Gemessen | Ergebnis |
 | --- | --- | --- |
-| Ergebnistypen der Operatoren | 20 Operandenpaare | 17 stimmen; die 3 Abweichungen sind **eine** Regel |
+| Ergebnistypen der Operatoren | 20 Operandenpaare, für `/` nachgemessen alle 121 | 17 stimmten; die 3 Abweichungen waren **eine** Regel, inzwischen geschlossen |
 | Zahlenausgabe | 26 Ausdrücke | 12 Abweichungen aus **vier** Ursachen |
 | Fehlernummern | 26 Fehlerfälle | 25 stimmen, inklusive aller Verdächtigen des Sammelwerts 5 |
 | Datei-Layouts (Binary) | 13 Werte, gegen Rohbytes | alle bytegleich |
@@ -551,7 +555,6 @@ kein Orakelfall geschrieben ist. Was kein Orakelfall stellt, bleibt `documented-
 
 | Karte | Ziel und Abnahme |
 | --- | --- |
-| `r1-division-result-type` | **Ergebnistyp der Division:** `/` folgt dem Original — `Double`, außer beide Operanden sind `Single`; der gemessene Wert trägt die Präzision dieses Typs. |
 | `r1-cstr-locale` | **Dezimaltrenner von CStr im SP6-Profil:** `CStr` folgt der System-LCID wie das Original; `Str` bleibt invariant. |
 | `r1-number-notation-threshold` | **Schwelle zur Exponentialschreibweise:** Eine Zahl wird erst dort exponentiell geschrieben, wo das Original es tut — `0,00001` bleibt ausgeschrieben. |
 | `r1-format-general-single` | **General Number auf einem Single:** sieben signifikante Stellen wie im Original, nicht fünfzehn. |
@@ -559,16 +562,22 @@ kein Orakelfall geschrieben ist. Was kein Orakelfall stellt, bleibt `documented-
 | `r1-chdir-missing-directory` | **Fehlernummer von ChDir:** ein fehlendes Verzeichnis meldet 76 (Path not found), nicht 53. |
 | `r1-module-name-rules` | **Namensregeln für Module und Bezeichner:** die drei vom Original durchgesetzten Regeln werden gemeldet statt stillschweigend angenommen. |
 
-Die beiden Karten, die **Dateiinhalte** betrafen, sind geschlossen: das Bytelayout eines Strings
-bei `Put` und der `String * n`. Sie waren die einzigen, die Dateien verfälschten statt Werte oder
-Text, und damit die einzigen, die das Projektziel „ein altes `.vbp` wird ohne Quelltextänderung
-übersetzt" direkt brachen. Die Nachweise stehen im Changelog. Keine der sieben verbliebenen berührt
-Dateiinhalte.
+Geschlossen sind die drei schwersten dieses Durchgangs, und zwar in der Reihenfolge ihrer Schwere:
+das Bytelayout eines Strings bei `Put`, der `String * n` — die beiden einzigen, die **Dateien**
+verfälschten statt Werte oder Text und damit das Projektziel „ein altes `.vbp` wird ohne
+Quelltextänderung übersetzt" direkt brachen — und der Ergebnistyp von `/`, der einen **Wert**
+verfälschte: jede `Integer / Integer`-Division verlor Präzision. Die Nachweise stehen im Changelog.
 
-Von den sieben wiegt `r1-division-result-type` am schwersten: Sie verfälscht einen **Wert**, jede
-`Integer / Integer`-Division verliert Präzision. Die vier Ausgabekarten machen falschen Text bei
-richtigem Wert, `r1-chdir-missing-directory` eine falsche Fehlernummer, und
-`r1-module-name-rules` ist eine Form, die das Original ablehnt, während wir sie annehmen.
+Der Ergebnistyp der Division ist zugleich die erste Erwartung der Matrix mit
+`verification: oracle-verified`. Ihre ganze beschriebene Fläche — alle 121 Operandenpaare plus die
+Präzision des Ergebniswerts — steht als Orakelfall in der Suite und besteht ohne Rest. Der Wächter,
+der die Achse bis dahin auf null hielt, ist durch einen ersetzt, der die Latte prüft statt sie zu
+verbieten: Eine `oracle-verified`-Erwartung muss einen Fall in
+`tests/VB6.Compiler.Tests/Oracle*Tests.cs` nennen. Die Einordnung steht im Statusmodell oben.
+
+Von den fünf verbliebenen berührt keine Dateiinhalte und keine einen Wert. Die vier Ausgabekarten
+machen falschen Text bei richtigem Wert, `r1-chdir-missing-directory` eine falsche Fehlernummer,
+und `r1-module-name-rules` ist eine Form, die das Original ablehnt, während wir sie annehmen.
 
 ### R5 — Forms, ActiveX und persistierte Artefakte
 
