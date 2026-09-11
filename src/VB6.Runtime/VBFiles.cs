@@ -263,7 +263,6 @@ public static class VBFiles
     private static readonly Dictionary<int, VBFileAccessMode> AccessModes = new();
     private static readonly Dictionary<int, int> PrintWidths = new();
     private static readonly Dictionary<int, int> PrintLineLengths = new();
-    private static readonly HashSet<int> WriteChannels = new();
     private readonly record struct FileLockRange(long Offset, long Length);
     private static readonly Dictionary<int, List<FileLockRange>> FileLocks = new();
     private static readonly Encoding FixedStringEncoding = Encoding.Latin1;
@@ -521,23 +520,48 @@ public static class VBFiles
     {
         var stream = GetStream(fileNumber);
         var encoding = TextEncoding(compatibilityProfile);
-        if (!WriteChannels.Add(fileNumber))
-        {
-            var separator = encoding.GetBytes(",");
-            stream.Write(separator, 0, separator.Length);
-        }
 
+        // Das Trennzeichen steht **hinter** dem Wert, nicht davor. Innerhalb eines Satzes ist das
+        // dasselbe Ergebnis; sichtbar wird der Unterschied nur am offenen Satzende, und genau dort
+        // hat das Original entschieden: 'Write #f, 1;' schreibt '1,' und nicht '1'.
         var bytes = encoding.GetBytes(FormatWriteValue(value));
         stream.Write(bytes, 0, bytes.Length);
         if (endRecord)
         {
             var terminator = encoding.GetBytes("\r\n");
             stream.Write(terminator, 0, terminator.Length);
-            stream.Flush();
-            WriteChannels.Remove(fileNumber);
         }
+        else
+        {
+            var separator = encoding.GetBytes(",");
+            stream.Write(separator, 0, separator.Length);
+        }
+
+        stream.Flush();
     }
 
+    /// <summary>
+    /// One field of a <c>Write #</c> record.
+    ///
+    /// <c>Write #</c> is the third output family beside <c>CStr</c> and <c>Str</c>, and its rule
+    /// follows from its purpose: a file written here must be readable with <c>Input #</c> on any
+    /// machine, so nothing about it may depend on the locale. Measured against VB6 SP6 on
+    /// 2026-09-11:
+    ///
+    /// <list type="bullet">
+    /// <item>A number is written in the <c>Str</c> shape -- invariant, at the type's precision, and
+    /// **without** the zero before the separator (<c>.3333333</c>, <c>-.25</c>) -- but without
+    /// <c>Str</c>'s leading sign column.</item>
+    /// <item>A Date is a date literal in hashes, <c>#2020-01-03#</c>, and carries a time only when
+    /// it has one: <c>#2020-01-03 18:30:45#</c>. A pure time keeps the OLE epoch date,
+    /// <c>#1899-12-30 18:30:45#</c>.</item>
+    /// <item><c>Empty</c> writes nothing at all; <c>Null</c> writes <c>#NULL#</c>.</item>
+    /// </list>
+    ///
+    /// We wrote a Single with .NET's round-trip digits (<c>0.33333334</c>) and a Date as its
+    /// serial number (<c>43833</c>). The serial was the heavier of the two: the original reads such
+    /// a file back as a number, so the type is lost on the round trip that this format exists for.
+    /// </summary>
     private static string FormatWriteValue(object? value)
     {
         value = VBVariantObject.ResolveDefaultValue(value);
@@ -558,13 +582,30 @@ public static class VBFiles
         {
             string text => $"\"{text.Replace("\"", "\"\"", StringComparison.Ordinal)}\"",
             bool boolean => boolean ? "#TRUE#" : "#FALSE#",
-            VBDateValue date => $"#{DateTime.FromOADate(date.OADate).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}#",
-            DateTime date => $"#{date.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}#",
+            VBDateValue date => WriteDateLiteral(DateTime.FromOADate(date.OADate)),
+            DateTime date => WriteDateLiteral(date),
             VBErrorValue error => $"#ERROR {error.Code.ToString(CultureInfo.InvariantCulture)}#",
+            float single => WriteNumber(VBNumberText.FromSingle(single, CultureInfo.InvariantCulture)),
+            double number => WriteNumber(VBNumberText.FromDouble(number, CultureInfo.InvariantCulture)),
+            decimal number => WriteNumber(VBNumberText.FromDecimal(number, CultureInfo.InvariantCulture)),
+            VBCurrency currency => WriteNumber(VBNumberText.FromCurrency(currency, CultureInfo.InvariantCulture)),
             IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture) ?? string.Empty,
             _ => VBConversions.CStr(value)
         };
     }
+
+    /// <summary>The <c>Str</c> shape without its sign column: no zero before the separator.</summary>
+    private static string WriteNumber(string text) => text switch
+    {
+        ['0', '.', ..] => text[1..],
+        ['-', '0', '.', ..] => "-" + text[2..],
+        _ => text
+    };
+
+    private static string WriteDateLiteral(DateTime value) =>
+        value.TimeOfDay == TimeSpan.Zero
+            ? $"#{value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}#"
+            : $"#{value.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}#";
 
     public static string LineInput(int fileNumber)
         => LineInput(fileNumber, VBCompatibilityProfile.Deterministic);
@@ -977,7 +1018,6 @@ public static class VBFiles
         AccessModes.Remove(fileNumber);
         PrintWidths.Remove(fileNumber);
         PrintLineLengths.Remove(fileNumber);
-        WriteChannels.Remove(fileNumber);
         FileLocks.Remove(fileNumber);
     }
 
@@ -994,7 +1034,6 @@ public static class VBFiles
         AccessModes.Clear();
         PrintWidths.Clear();
         PrintLineLengths.Clear();
-        WriteChannels.Clear();
         FileLocks.Clear();
     }
 
