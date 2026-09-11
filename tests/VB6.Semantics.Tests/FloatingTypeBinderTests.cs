@@ -63,8 +63,15 @@ public sealed class FloatingTypeBinderTests
         Assert.AreEqual(TypeSymbol.Double, add.Right.Type);
     }
 
+    /// <summary>
+    /// <c>/</c> computes in Double, and the assignment target does not change that -- the operand
+    /// types decide alone, which is the same rule that makes <c>value = 2000 * 365</c> overflow.
+    ///
+    /// This case asserted <c>Single</c> until 2026-09-10, when VB6 SP6 said otherwise. It was a
+    /// regression proof for an expectation nobody had measured.
+    /// </summary>
     [TestMethod]
-    public void Bind_IntegerFloatingDivisionProducesSingle()
+    public void Bind_IntegerFloatingDivisionProducesDouble()
     {
         var model = BindSource("""
             Sub Main()
@@ -75,11 +82,61 @@ public sealed class FloatingTypeBinderTests
 
         Assert.AreEqual(0, model.Diagnostics.Length);
         var assignment = (BoundAssignmentStatement)model.Procedures.Single().Body.Statements[1];
-        var divide = (BoundBinaryExpression)assignment.Expression;
-        Assert.AreEqual(TypeSymbol.Single, divide.Type);
-        Assert.AreEqual(TypeSymbol.Single, divide.Left.Type);
-        Assert.AreEqual(TypeSymbol.Single, divide.Right.Type);
+
+        // Die Zuweisung an ein Single schiebt jetzt eine Konvertierung dazwischen -- genau das ist
+        // der Befund: Der Ausdruck rechnet in Double und wird erst danach schmaler.
+        var divide = (BoundBinaryExpression)Unwrap(assignment.Expression);
+        Assert.AreEqual(TypeSymbol.Double, divide.Type);
+        Assert.AreEqual(TypeSymbol.Double, divide.Left.Type);
+        Assert.AreEqual(TypeSymbol.Double, divide.Right.Type);
     }
+
+    /// <summary>
+    /// The exception, and its edge. A Single on one side makes the result Single only while the
+    /// other side is no wider -- measured across all 121 operand pairs against the original, where
+    /// <c>Single / Long</c>, <c>Single / Double</c>, <c>Single / Currency</c> and
+    /// <c>Single / Date</c> all came back Double.
+    /// </summary>
+    [TestMethod]
+    public void Bind_DivisionKeepsSingleOnlyBesideANarrowerOperand()
+    {
+        var model = BindSource("""
+            Sub Main()
+                Dim s As Single
+                Dim i As Integer
+                Dim l As Long
+                Dim b As Boolean
+                Dim r As Double
+                r = s / i
+                r = i / s
+                r = s / b
+                r = s / l
+                r = i / i
+            End Sub
+            """);
+
+        Assert.AreEqual(0, model.Diagnostics.Length);
+        var statements = model.Procedures.Single().Body.Statements;
+        var types = Enumerable.Range(5, 5)
+            .Select(index => ((BoundBinaryExpression)
+                Unwrap(((BoundAssignmentStatement)statements[index]).Expression)).Type)
+            .ToArray();
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                TypeSymbol.Single,
+                TypeSymbol.Single,
+                TypeSymbol.Single,
+                TypeSymbol.Double,
+                TypeSymbol.Double
+            },
+            types);
+    }
+
+    /// <summary>Strips the conversion an assignment adds, so the operator's own type is visible.</summary>
+    private static BoundExpression Unwrap(BoundExpression expression) =>
+        expression is BoundConversionExpression conversion ? conversion.Expression : expression;
 
     private static SemanticModel BindSource(string source)
     {
