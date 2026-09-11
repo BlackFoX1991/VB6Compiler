@@ -2194,7 +2194,9 @@ public sealed class ManagedEmitter
                      IrRuntimeMethod.DebugPrint or
                      IrRuntimeMethod.DebugPrintValue or
                      IrRuntimeMethod.Concat or
-                     IrRuntimeMethod.ConcatVariant)
+                     IrRuntimeMethod.ConcatVariant or
+                     IrRuntimeMethod.CDate or
+                     IrRuntimeMethod.ConvertCDate)
             {
                 encoder.LoadConstantI4((int)_program.CompatibilityProfile);
             }
@@ -6463,7 +6465,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.CUInt) return Static(typeof(VBConversions), "CUInt", typeof(object));
             if (m == IrRuntimeMethod.CULng) return Static(typeof(VBConversions), "CULng", typeof(object));
             if (m == IrRuntimeMethod.CDec) return Static(typeof(VBConversions), "CDec", typeof(object));
-            if (m == IrRuntimeMethod.CDate) return Static(typeof(VBConversions), "CDate", typeof(object));
+            if (m == IrRuntimeMethod.CDate) return Static(typeof(VBConversions), "CDate", typeof(object), typeof(VBCompatibilityProfile));
             if (m == IrRuntimeMethod.CVDate) return Static(typeof(VBConversions), "CVDate", typeof(object));
             if (m == IrRuntimeMethod.DateToVariant) return Static(typeof(VBConversions), "DateToVariant", typeof(double));
             if (m == IrRuntimeMethod.CLngLng) return Static(typeof(VBConversions), "CLngLng", typeof(object));
@@ -6485,7 +6487,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.ConvertCUShort) return Static(typeof(VBConversions), "ConvertCUShort", typeof(object));
             if (m == IrRuntimeMethod.ConvertCUInt) return Static(typeof(VBConversions), "ConvertCUInt", typeof(object));
             if (m == IrRuntimeMethod.ConvertCULng) return Static(typeof(VBConversions), "ConvertCULng", typeof(object));
-            if (m == IrRuntimeMethod.ConvertCDate) return Static(typeof(VBConversions), "ConvertCDate", typeof(object));
+            if (m == IrRuntimeMethod.ConvertCDate) return Static(typeof(VBConversions), "ConvertCDate", typeof(object), typeof(VBCompatibilityProfile));
             if (m == IrRuntimeMethod.ConvertCLngLng) return Static(typeof(VBConversions), "ConvertCLngLng", typeof(object));
             if (m == IrRuntimeMethod.ConvertCCur) return Static(typeof(VBConversions), "ConvertCCur", typeof(object));
             if (m == IrRuntimeMethod.ConvertCSng) return Static(typeof(VBConversions), "ConvertCSng", typeof(object));
