@@ -2159,20 +2159,41 @@ public sealed class Parser
         var fileNumber = ParseFileNumber();
         MatchToken(SyntaxKind.CommaToken);
         var expressions = ImmutableArray.CreateBuilder<ExpressionSyntax>();
+        var keepsRecordOpen = false;
         while (Current.Kind is not SyntaxKind.NewLineToken
                and not SyntaxKind.ColonToken
                and not SyntaxKind.EndOfFileToken)
         {
-            expressions.Add(ParseExpression());
-            if (Current.Kind != SyntaxKind.CommaToken)
+            // Ein nachlaufendes Semikolon haelt den Satz offen. Ohne diesen Zweig meldete
+            // 'Write #f, 1;' zwei VB6P0001 -- eine Form, die das Original annimmt.
+            if (Current.Kind == SyntaxKind.SemicolonToken)
             {
+                NextToken();
+                keepsRecordOpen = true;
                 break;
             }
 
-            NextToken();
+            expressions.Add(ParseExpression());
+            if (Current.Kind == SyntaxKind.CommaToken)
+            {
+                NextToken();
+                continue;
+            }
+
+            if (Current.Kind == SyntaxKind.SemicolonToken)
+            {
+                NextToken();
+                keepsRecordOpen = true;
+            }
+
+            break;
         }
 
-        return new FileWriteStatementSyntax(writeKeyword, fileNumber, expressions.ToImmutable());
+        return new FileWriteStatementSyntax(
+            writeKeyword,
+            fileNumber,
+            expressions.ToImmutable(),
+            keepsRecordOpen);
     }
 
     private WidthStatementSyntax ParseWidthStatement()

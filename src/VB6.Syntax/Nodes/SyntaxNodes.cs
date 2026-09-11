@@ -451,10 +451,16 @@ public sealed record FilePrintStatementSyntax(
     ImmutableArray<ExpressionSyntax> Expressions = default,
     ImmutableArray<SyntaxToken> Separators = default) : StatementSyntax(SyntaxKind.FilePrintStatement);
 
+/// <summary>
+/// <c>KeepsRecordOpen</c> traegt das nachlaufende Semikolon. VB6 beendet den Satz dann nicht
+/// und schreibt stattdessen das Trennzeichen hinter den letzten Wert -- gemessen ergibt
+/// <c>Write #f, 1;</c> die Datei <c>1,</c>.
+/// </summary>
 public sealed record FileWriteStatementSyntax(
     SyntaxToken WriteKeyword,
     FileNumberSyntax FileNumber,
-    ImmutableArray<ExpressionSyntax> Expressions) : StatementSyntax(SyntaxKind.FileWriteStatement);
+    ImmutableArray<ExpressionSyntax> Expressions,
+    bool KeepsRecordOpen = false) : StatementSyntax(SyntaxKind.FileWriteStatement);
 
 public sealed record LockStatementSyntax(
     SyntaxToken LockKeyword,
