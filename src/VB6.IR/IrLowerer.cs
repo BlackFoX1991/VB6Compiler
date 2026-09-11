@@ -1482,7 +1482,7 @@ public static class IrLowerer
                         Emit(new IrEvaluateInstruction(Runtime(
                             IrRuntimeMethod.DebugPrint,
                             TypeSymbol.Error,
-                            LowerPrintItem(debugExpressions[0]))));
+                            LowerTextOutputItem(debugExpressions[0]))));
                         break;
                     }
 
@@ -1494,7 +1494,7 @@ public static class IrLowerer
                         Emit(new IrEvaluateInstruction(Runtime(
                             IrRuntimeMethod.DebugPrintValue,
                             TypeSymbol.Error,
-                            LowerPrintItem(debugExpressions[index]),
+                            LowerTextOutputItem(debugExpressions[index]),
                             new IrConstantExpression(index >= print.Separators.Length, TypeSymbol.Boolean),
                             new IrConstantExpression(debugSeparator, TypeSymbol.Long))));
                     }
@@ -1616,7 +1616,7 @@ public static class IrLowerer
                             IrRuntimeMethod.FilePrint,
                             TypeSymbol.Error,
                             LowerExpression(print.FileNumber),
-                            LowerPrintItem(printExpressions[0]))));
+                            LowerTextOutputItem(printExpressions[0]))));
                         break;
                     }
 
@@ -1629,20 +1629,40 @@ public static class IrLowerer
                             IrRuntimeMethod.FilePrintValue,
                             TypeSymbol.Error,
                             LowerExpression(print.FileNumber),
-                            LowerPrintItem(printExpressions[index]),
+                            LowerTextOutputItem(printExpressions[index]),
                             new IrConstantExpression(index >= print.Separators.Length, TypeSymbol.Boolean),
                             new IrConstantExpression(separator, TypeSymbol.Long))));
                     }
                     break;
                 case BoundFileWriteStatement write:
+                    // 'Write #f,' ohne Werte schreibt eine leere Zeile -- gemessen am Original.
+                    // Die Schleife darunter erzeugt fuer eine leere Liste gar nichts, weshalb die
+                    // Zeile bei uns ausfiel und jede folgende um eine nach oben rutschte.
+                    if (write.Expressions.Length == 0)
+                    {
+                        Emit(new IrEvaluateInstruction(Runtime(
+                            IrRuntimeMethod.FileWrite,
+                            TypeSymbol.Error,
+                            LowerExpression(write.FileNumber),
+                            new IrConstantExpression(null, TypeSymbol.Variant),
+                            new IrConstantExpression(true, TypeSymbol.Boolean))));
+                        break;
+                    }
+
                     for (var index = 0; index < write.Expressions.Length; index++)
                     {
                         Emit(new IrEvaluateInstruction(Runtime(
                             IrRuntimeMethod.FileWrite,
                             TypeSymbol.Error,
                             LowerExpression(write.FileNumber),
-                            LowerExpression(write.Expressions[index]),
-                            new IrConstantExpression(index == write.Expressions.Length - 1, TypeSymbol.Boolean))));
+
+                            // Dieselbe Date-Huelle wie bei Print: Ein Date ist im IR ein Double,
+                            // und ohne sie schreibt Write seine Seriennummer statt eines
+                            // Datumsliterals.
+                            LowerTextOutputItem(write.Expressions[index]),
+                            new IrConstantExpression(
+                                index == write.Expressions.Length - 1 && !write.KeepsRecordOpen,
+                                TypeSymbol.Boolean))));
                     }
                     break;
                 case BoundWidthStatement width:
@@ -5402,7 +5422,12 @@ public static class IrLowerer
         /// bare OLE automation double it shares a representation with, so the runtime can still
         /// tell the two apart when it renders the item.
         /// </summary>
-        private IrExpression LowerPrintItem(BoundExpression expression) =>
+        /// <summary>
+        /// Wraps a Date so the sequential text paths keep its subtype. Im IR ist ein Date ein
+        /// Double; ohne diese Huelle sieht die Runtime nur eine Zahl und schreibt die
+        /// Seriennummer. Print benutzte sie laengst, Write nicht -- dieselbe Form, zwei Aufrufer.
+        /// </summary>
+        private IrExpression LowerTextOutputItem(BoundExpression expression) =>
             expression.Type == TypeSymbol.Date
                 ? Runtime(IrRuntimeMethod.DateToVariant, TypeSymbol.Variant, LowerExpression(expression))
                 : LowerExpression(expression);
