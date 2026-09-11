@@ -3263,16 +3263,18 @@
       "matrixEntry": "runtime-standard-library",
       "milestone": "R1",
       "dependsOn": [],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "DateAdd mit gebrochenem Intervall",
       "expected": {
         "acceptance": "DateAdd schneidet den gebrochenen Anteil des Intervalls ab wie das Original, statt zu runden."
       },
-      "verification": "not-yet-verified",
+      "verification": "oracle-verified",
       "testRefs": [
+        "tests/VB6.Compiler.Tests/OracleDateTimeTests.cs",
+        "tests/VB6.Runtime.Tests/DateTimeRuntimeTests.cs",
         "tests/VB6.Compiler.Tests/DateTimeIntrinsicExecutionTests.cs"
       ],
-      "notes": "Gemessen am 2026-09-11 gegen VB6 SP6, als Nebenbefund beim Schliessen der vier Ausgabekarten. DateAdd(\"d\", 1.6, CDate(43832)) ergibt im Original den 03.01.2020, bei uns den 04.01.2020: Das Original schneidet den gebrochenen Intervallanteil ab, wir runden ihn. Der Befund lag seit jeher in einem bestehenden Test (EmitManagedApplication_PassesSelectedProfileToDateTimeIntrinsics erwartete 2020-01-04), war dort aber als Regressionsanker notiert und nie gegen ein Original geprueft -- dasselbe Muster wie bei r1-division-result-type. Der Test traegt den Ist-Wert weiter und nennt die Abweichung im Kommentar. Nicht gemessen und mitzuklaeren, sobald die Karte drankommt: die uebrigen Intervallkennungen (yyyy, m, h, n, s) und negative gebrochene Intervalle.",
+      "notes": "Gemessen am 2026-09-11 gegen VB6 SP6, als Nebenbefund beim Schliessen der vier Ausgabekarten. DateAdd(\"d\", 1.6, CDate(43832)) ergibt im Original den 03.01.2020, bei uns den 04.01.2020: Das Original schneidet den gebrochenen Intervallanteil ab, wir runden ihn. Der Befund lag seit jeher in einem bestehenden Test (EmitManagedApplication_PassesSelectedProfileToDateTimeIntrinsics erwartete 2020-01-04), war dort aber als Regressionsanker notiert und nie gegen ein Original geprueft -- dasselbe Muster wie bei r1-division-result-type. Der Test traegt den Ist-Wert weiter und nennt die Abweichung im Kommentar. Nicht gemessen und mitzuklaeren, sobald die Karte drankommt: die uebrigen Intervallkennungen (yyyy, m, h, n, s) und negative gebrochene Intervalle. Abgeschlossen am 2026-09-11 und breiter gemessen als die Karte verlangte: alle zehn Intervallkennungen gegen 1.6, -1.6, 0.4, -0.4, 1 und 2.5, also 60 Faelle. Das war noetig, weil drei Regeln in Frage kamen und eine einzelne Kennung sie nicht trennt: Runden und Abschneiden stimmen bei 2.5 ueberein, Abschneiden und Int bei jedem positiven Wert -- erst die **negativen** Brueche unterscheiden alle drei. Das Original schneidet **zur Null hin** ab: -1.6 geht einen Tag zurueck, -0.4 gar nicht; Int haette daraus -2 und -1 gemacht, Runden -2 und 0. Der bisherige Kommentar an WholeIntervalCount behauptete Runden und fuehrte das Banker-Runden von CLng als Eigenschaft an -- nie gegen ein Original geprueft, und 2.5 war der einzige Wert, bei dem beide Regeln dasselbe sagen. Drei bestehende Zusicherungen trugen den Rundungswert. Gegenprobe: CLng-Rundung zurueckgenommen, der Orakelfall meldet.",
       "title": "DateAdd mit gebrochenem Intervall"
     },
     {
@@ -3299,16 +3301,18 @@
       "matrixEntry": "runtime-standard-library",
       "milestone": "R1",
       "dependsOn": [],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "CDate auf eine reine Zeitangabe",
       "expected": {
         "acceptance": "CDate(\"18:30:45\") behaelt den OLE-Epochentag 1899-12-30 wie das Original, statt das heutige Datum einzusetzen."
       },
-      "verification": "not-yet-verified",
+      "verification": "oracle-verified",
       "testRefs": [
+        "tests/VB6.Compiler.Tests/OracleDateTimeTests.cs",
+        "tests/VB6.Runtime.Tests/DateTimeRuntimeTests.cs",
         "tests/VB6.Compiler.Tests/DateTimeIntrinsicExecutionTests.cs"
       ],
-      "notes": "Gemessen am 2026-09-11 gegen VB6 SP6, aufgefallen beim Schliessen von r1-write-value-layout. CDate(\"18:30:45\") ergibt im Original 0,771354166666667 -- der Datumsanteil ist null, also der 30.12.1899 -- und bei uns 46276,7713541667, also das heutige Datum plus die Uhrzeit. TimeValue(\"18:30:45\") stimmt dagegen auf beiden Seiten. Der Befund ist damit eng auf CDate begrenzt und macht dieselbe Zeitangabe **maschinen- und tagesabhaengig**: Ein Programm, das eine Uhrzeit einliest und speichert, schreibt bei uns jeden Tag einen anderen Wert. Aufgefallen ist er nur, weil Write # das Datum als Literal schreibt und der Datumsanteil dadurch sichtbar wurde -- als Seriennummer war er eine Zahl unter vielen.",
+      "notes": "Gemessen am 2026-09-11 gegen VB6 SP6, aufgefallen beim Schliessen von r1-write-value-layout. CDate(\"18:30:45\") ergibt im Original 0,771354166666667 -- der Datumsanteil ist null, also der 30.12.1899 -- und bei uns 46276,7713541667, also das heutige Datum plus die Uhrzeit. TimeValue(\"18:30:45\") stimmt dagegen auf beiden Seiten. Der Befund ist damit eng auf CDate begrenzt und macht dieselbe Zeitangabe **maschinen- und tagesabhaengig**: Ein Programm, das eine Uhrzeit einliest und speichert, schreibt bei uns jeden Tag einen anderen Wert. Aufgefallen ist er nur, weil Write # das Datum als Literal schreibt und der Datumsanteil dadurch sichtbar wurde -- als Seriennummer war er eine Zahl unter vielen. Abgeschlossen am 2026-09-11. Die Ursache war DateTime.Parse: .NET fuellt einen fehlenden Datumsanteil mit Today, VB6 mit dem OLE-Epochentag. Der Schalter dafuer ist DateTimeStyles.NoCurrentDateDefault -- er laesst statt heute den 01.01.0001 stehen, und **dieser Marker ist die eigentliche Loesung**: Ein Datum von heute waere von einer fehlenden Angabe sonst nicht zu unterscheiden, weshalb eine Pruefung auf DateTime.Today den Fall nie haette trennen koennen. Dieselbe Messung hat eine zweite Regel derselben Funktion gezeigt und sie ist mitgeschlossen, weil sie in derselben Zeile steckt: Der Text wird unter der **System-LCID** gelesen, nicht invariant. CDate(\"03.01.2020\") ist im Original der dritte Januar und war bei uns der erste Maerz -- dieselbe Locale-Grenze wie bei CStr, nur eine Richtung weiter: lesend statt schreibend. Gemessen wurden 13 Textformen (Zeit mit und ohne Sekunden, AM/PM, ISO-Datum, Datum mit Zeit, Ortsform, dazu TimeValue, DateValue, TimeSerial, DateSerial und ein Zeitliteral); alle stimmen jetzt. Gegenprobe: NoCurrentDateDefault zurueckgenommen, der Orakelfall meldet.",
       "title": "CDate auf eine reine Zeitangabe"
     },
     {
@@ -3718,9 +3722,9 @@
         "bitness": "agnostic unless API exposes native handles",
         "com": "Clipboard/Printer/host services use explicit adapters"
       },
-      "implementation": "partial",
-      "verification": "not-yet-verified",
-      "gap": "r1-dateadd-fractional-interval: DateAdd mit gebrochenem Intervall; r1-cdate-time-only: CDate auf eine reine Zeitangabe",
+      "implementation": "implemented",
+      "verification": "documented-verified",
+      "gap": "",
       "tests": [
         "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
         "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs",

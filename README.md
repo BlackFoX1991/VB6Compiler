@@ -13,7 +13,7 @@ ABI and COM binary compatibility, external ActiveX contracts, and application-le
 LLVM, LSP, the IDE and visual designer remain deferred.
 
 <!-- verification:readme-status-matrix:begin -->
-The compatibility matrix contains 189 expectations (174 implemented, 0 partial, 15 planned) with 168/189 documented-verified.
+The compatibility matrix contains 189 expectations (176 implemented, 0 partial, 13 planned) with 168/189 documented-verified.
 <!-- verification:readme-status-matrix:end -->
 The new expectations make previously untracked completion work explicit. These counts describe
 specific contracts, not a percentage of VB6 compatibility. Existing IDs are retained; the former
@@ -184,14 +184,14 @@ The table below is written by `build.ps1 -UpdateVerificationDocs` from the run r
 hand. An ordinary build does not touch this file.
 
 <!-- verification:readme-measurements:begin -->
-Measured on 2026-09-11 at `80b94cb` on `main` with uncommitted changes, run `20260911T081959Z-eef615ef`:
+Measured on 2026-09-11 at `b4dc376` on `main` with uncommitted changes, run `20260911T084306Z-0ea5846c`:
 
 | Check | Result | What it does not establish |
 | --- | --- | --- |
 | Release build | 0 warnings, 0 errors | `TreatWarningsAsErrors`: one warning fails the build |
-| Standard serial run, 13 test projects | 1906 cases: 1906 passed, 0 failed, 0 skipped | Serial run across every test project |
+| Standard serial run, 13 test projects | 1908 cases: 1908 passed, 0 failed, 0 skipped | Serial run across every test project |
 | Native x86 run with `VB6_REQUIRE_NATIVE_OCX=1` | 93/93 passed, 0 skipped | Separate x86 run of the WinForms tests |
-| Oracle cross-check against VB6 SP6 | 9/9 passed, 0 skipped | Compared against VB6 SP6; covers only the surface an oracle case asks about |
+| Oracle cross-check against VB6 SP6 | 11/11 passed, 0 skipped | Compared against VB6 SP6; covers only the surface an oracle case asks about |
 | VISIA analysis | 40/40 project items, 0 diagnostics | Analysis and binding only, not application runtime behavior |
 
 Complete gate (standard run and native x86 run on the same source state): **True**.
@@ -204,8 +204,8 @@ additional x86 executions — and it was read as a test count for a long time. S
 above is written from `artifacts/verification-report.json` rather than maintained by hand.
 
 <!-- verification:readme-matrix:begin -->
-The matrix reports **189 expectations**: **174 implemented**, **0 partial**, **15 planned**;
-**168 documented-verified**, **15 not-yet-verified**, **6 oracle-verified**.
+The matrix reports **189 expectations**: **176 implemented**, **0 partial**, **13 planned**;
+**168 documented-verified**, **13 not-yet-verified**, **8 oracle-verified**.
 <!-- verification:readme-matrix:end -->
 
 Since 2026-09-10 a real **VB6 SP6** (`VB6.EXE 6.00.9782`) is available and is compared against:

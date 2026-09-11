@@ -16,8 +16,8 @@ entschieden wird; alles andere ordnet sich unter.
 
 Aktuelle Arbeitsfront ist die einzige aktive Managed-Roadmap R0–R7 in `docs/ROADMAP.md`.
 <!-- verification:claude-matrix:begin -->
-Die Matrix enthält 189 Erwartungen: 174 `implemented`, 0 `partial`, 15 `planned`;
-168 `documented-verified`, 15 `not-yet-verified`, 6 `oracle-verified`.
+Die Matrix enthält 189 Erwartungen: 176 `implemented`, 0 `partial`, 13 `planned`;
+168 `documented-verified`, 13 `not-yet-verified`, 8 `oracle-verified`.
 <!-- verification:claude-matrix:end -->
 Offene Karten tragen `milestone` und `dependsOn`; sie schließen ausdrücklich
 Objektlebensdauer, gespeicherte Zeiger und externe COM-/ActiveX-Verträge ein.
@@ -316,8 +316,8 @@ Smart App Control aus (`VerifiedAndReputablePolicyState = 0`), läuft die Suite 
 
 `TreatWarningsAsErrors` ist an, `Nullable` ist an. Der Build muss warnungsfrei bleiben.
 <!-- verification:claude-measurements:begin -->
-Stand der Prüfung 2026-09-11 auf `80b94cb` mit nicht committeten Änderungen: 1906 Standardfälle in 13 Projekten,
-1906 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: 93/93 bestanden, 0 übersprungen.
+Stand der Prüfung 2026-09-11 auf `b4dc376` mit nicht committeten Änderungen: 1908 Standardfälle in 13 Projekten,
+1908 bestanden, 0 fehlgeschlagen. Nativer x86-Lauf: 93/93 bestanden, 0 übersprungen.
 VISIA: 40/40 Projektitems, 0 Diagnosen.
 Vollständiges Gate: True. Laufbericht: `artifacts/verification-report.json`.
 <!-- verification:claude-measurements:end -->
@@ -364,6 +364,18 @@ laufen dort projektweise, nicht solutionweit; der native OCX-Pfad bleibt ein exp
   existierte und war frisch. Verraten hat es allein der Dateiname.
 - **Zahlenausgabe hat genau einen Ort: `VBNumberText`.** `CStr`, `Format(…, "General Number")`, `Debug.Print`/`Print #`, der `&`-Operator und `Str` holen ihre Ziffern von dort; sie unterscheiden sich nur in der Kultur und in zwei Zusatzregeln von `Str`. Wer eine davon anfasst, fasst nicht die anderen an — das war vorher anders, und die Doppelung war die Ursache von `r1-format-general-single`. **Die Schwelle zur Exponentialschreibweise ist nicht die von .NET.** `G` wechselt unterhalb von 10⁻⁵; VB6 schreibt einen Double bis 10⁻¹⁵ und einen Single bis 10⁻⁷ aus. Es ist auch keine Exponentenschwelle: Gemessen wird die **Ziffernzahl** gegen die Präzision des Typs (7 bei Single, 15 bei Double) — bei |x| ≥ 1 die Vorkommastellen, sonst die Nachkommastellen **einschließlich der führenden Nullen**. Der Fall, der jede Exponentenfassung widerlegt: `CSng(0.00001)` wird ausgeschrieben, `CSng(0.00000123)` mit demselben Exponentenbereich nicht. Currency ist davon ausgenommen — exakt, nie exponentiell.
 - **`Debug.Print` ist inzwischen VB6-nah formatiert** — führendes Vorzeichen-Leerzeichen über `FormatNumeric`, **`G7` für Single**, `G15` für Double/Currency, `G29` für den Decimal-Subtype (`Runtime.cs`). Dieselbe Staffelung gilt für `CStr` und für `Format(…, "General Number")`: Ein Single trägt sieben signifikante Stellen, und ihn mit fünfzehn auszugeben zeigt seine Umrechnungsreste als wären sie Werte. **Das frühere Beispiel dafür war falsch und ist am 2026-09-10 am Original widerlegt worden:** `1 / 3` ist in VB6 **kein** Single, sondern ein `Double`. Die G7-Staffelung für echte Single-Werte bleibt richtig, nur ihre Begründung war es nicht. Der Ergebnistyp von `/` ist inzwischen über **alle 121 Operandenpaare** gemessen und umgesetzt (`r1-division-result-type`), und die Regel ist schmaler als beide Fassungen davor: **Double, außer eine Seite ist `Single` und die andere nicht breiter** (`Byte`, `Integer`, `Boolean`, `Single`, oder ein Variant mit einem solchen Inhalt). Nicht „beide Operanden klein" — `Integer / Integer` ist Double. Und auch nicht die dokumentierte Fassung „eine Seite Single, die andere nicht Long/Currency/Decimal" — `Single / Double` und `Single / Date` sind gemessen Double. Wer das prüft, braucht die gemischten Paare; eine Tabelle aus gleichtypigen Paaren besteht mit jeder der drei Regeln. Weiterhin gilt: die E2E-Helfer trimmen bewusst, Spalten-/Plattformformat ist damit *nicht* abgedeckt. Beim Anfassen von Zahlenausgabe mitdenken.
+- **Die Locale-Grenze hat zwei Richtungen, und `CDate` ist die lesende.** `CDate` einer
+  Zeichenkette liest den Text im SP6-Profil unter der **System-LCID**: `CDate("03.01.2020")` ist
+  der dritte Januar, invariant gelesen wäre es der erste März. Dazu eine Regel, die nur .NET
+  braucht: Eine Zeitangabe **ohne** Datum behält in VB6 den OLE-Epochentag, während
+  `DateTime.Parse` `Today` einsetzt — derselbe Eingabewert ergab bei uns jeden Tag eine andere
+  Zahl. Der Schalter ist `DateTimeStyles.NoCurrentDateDefault`, und sein Marker (01.01.0001) ist
+  die eigentliche Lösung: Ein Datum von heute wäre von einer fehlenden Angabe sonst nicht zu
+  unterscheiden.
+- **`DateAdd` schneidet ein gebrochenes Intervall zur Null hin ab, es rundet nicht.** `-1.6` geht
+  einen Tag zurück, `-0.4` gar nicht. Wer das prüft, braucht die **negativen** Brüche: Runden und
+  Abschneiden stimmen bei 2.5 überein, Abschneiden und `Int` bei jedem positiven Wert. Der Code
+  hier behauptete jahrelang Runden und führte das Banker-Runden von `CLng` als Eigenschaft an.
 - **Drei Ausgabefunktionen, drei Locale-Regeln — am Original gemessen, nicht hergeleitet.** `CStr`, `Format`, `Print`/`Debug.Print` und der `&`-Operator folgen im SP6-Profil der **System-LCID**. `Str` ist **invariant**, auch dort — das ist keine Inkonsequenz des Originals, sondern seine Regel, und unsere Umsetzung hatte beide genau vertauscht. `Write #` ist ebenfalls invariant, und zwar in der `Str`-Form (ohne führende Null), damit eine geschriebene Datei auf jeder Maschine mit `Input #` wieder lesbar ist. Wer eine Locale-Abweichung sieht, prüft erst, **welche** der drei Familien betroffen ist. Der `&`-Operator ist dabei der unauffälligste: Er wandelt wie `CStr`, steht im Quelltext aber nirgends als Konvertierung, also blieb eine Zahl dort noch invariant, nachdem `CStr` längst richtig war. Auch ein **Datum** ist locale-behaftet: `CStr` eines Datums ist `31.12.1999`, nicht `1999-12-31`.
 - **Locale-Verträge sind profilabhängig.** Bestehende deterministische Signaturen bleiben invariant; `VB6Sp6` verwendet an den implementierten Grenzen System-LCID und ANSI-Codepage. Profilzustand reist über IR/Assembly und explizite Runtime-Verträge, nicht über einen globalen Schalter. Weitere Locale-/DBCS- und Ausgabeabnahme gehört zu R1.
 - **`vbUseSystem` bleibt in beiden Profilen systemabhängig.** Kalenderparameter mit Wert 0 verwenden `CurrentCulture`; das ist eine entschiedene Ausnahme. Die COM-Dispatch-LCID folgt ebenfalls bewusst `CurrentCulture`. Diese Entscheidung nicht erneut als offenen Determinismuskonflikt führen.

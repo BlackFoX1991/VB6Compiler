@@ -9560,3 +9560,41 @@ Orakelfall.
 
 Kanonischer Lauf: 1906/1906 im Standardlauf, 93/93 nativ, 9/9 Orakel, VISIA 40/40, Gate
 vollständig. Matrix: 189 Erwartungen, davon 6 `oracle-verified`.
+
+## Die beiden Datumskarten — `r1-cdate-time-only` und `r1-dateadd-fractional-interval`
+
+Beide stammen aus derselben Nachbarschaft und sind deshalb in einem Durchgang gemessen worden.
+73 Zeilen, am Ende bytegleich; vorher wichen 24 ab.
+
+**`CDate` hatte zwei Regeln, nicht eine.** Die Karte nannte die Zeitangabe ohne Datum: VB6 behält
+den OLE-Epochentag, .NETs `DateTime.Parse` setzt `Today` ein. Derselbe Eingabewert ergab bei uns
+jeden Tag eine andere Zahl — ein Programm, das eine Uhrzeit einliest und speichert, schrieb jeden
+Morgen etwas anderes. Der Schalter dafür ist `DateTimeStyles.NoCurrentDateDefault`, und **sein
+Marker ist die eigentliche Lösung**: Er lässt statt heute den 01.01.0001 stehen, und genau daran
+ist „kein Datum angegeben" von „ein Datum, das zufällig heute ist" zu unterscheiden. Eine Prüfung
+gegen `Today` hätte den Fall nie trennen können.
+
+Die zweite Regel steckte in derselben Zeile und ist mitgeschlossen: Der Text wird unter der
+**System-LCID** gelesen. `CDate("03.01.2020")` ist im Original der dritte Januar und war bei uns
+der erste März. Das ist dieselbe Locale-Grenze wie bei `CStr`, eine Richtung weiter — lesend statt
+schreibend.
+
+**`DateAdd` schneidet ab, es rundet nicht.** Gemessen wurden alle zehn Intervallkennungen gegen
+1.6, -1.6, 0.4, -0.4, 1 und 2.5 — sechzig Fälle, und die Breite war nötig: Drei Regeln kamen in
+Frage, und eine einzelne Kennung trennt sie nicht. Runden und Abschneiden stimmen bei 2.5 überein,
+Abschneiden und `Int` bei jedem positiven Wert; erst die **negativen** Brüche unterscheiden alle
+drei. Das Original schneidet **zur Null hin** ab: `-1.6` geht einen Tag zurück, `-0.4` gar nicht.
+
+Der Kommentar an `WholeIntervalCount` behauptete Runden und führte das Banker-Runden von `CLng`
+ausdrücklich als Eigenschaft an — nie gegen ein Original geprüft, und 2.5 war der einzige Wert, bei
+dem beide Regeln dasselbe sagen. Vier bestehende Zusicherungen trugen den Rundungswert.
+
+Beide Karten waren erst durch eine andere Reparatur sichtbar geworden: Seit `Write #` ein Datum als
+Literal statt als Seriennummer schreibt, steht der Datumsanteil in der Datei. Als Zahl unter Zahlen
+hatte ihn niemand angesehen.
+
+Gegenproben: Rundung und `NoCurrentDateDefault` je einmal zurückgenommen, beide Male meldet der
+Orakelfall.
+
+Kanonischer Lauf: 1908/1908 im Standardlauf, 93/93 nativ, 11/11 Orakel, VISIA 40/40, Gate
+vollständig. Matrix: 189 Erwartungen, davon 8 `oracle-verified`.

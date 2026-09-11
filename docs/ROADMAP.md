@@ -21,14 +21,14 @@ Die Tabelle unten wird von `build.ps1 -UpdateVerificationDocs` aus dem Laufberic
 nicht von Hand. Ein gewöhnlicher Build fasst dieses Dokument nicht an.
 
 <!-- verification:roadmap-measurements:begin -->
-Messung vom 2026-09-11 auf `main` / `80b94cb` mit nicht committeten Änderungen, Lauf `20260911T081959Z-eef615ef`:
+Messung vom 2026-09-11 auf `main` / `b4dc376` mit nicht committeten Änderungen, Lauf `20260911T084306Z-0ea5846c`:
 
 | Messpunkt | Ergebnis | Aussagegrenze |
 | --- | --- | --- |
 | Release-Build | 0 Warnungen, 0 Fehler | `TreatWarningsAsErrors`: eine Warnung bricht den Build ab |
-| Standardlauf, 13 Testprojekte | 1906 Fälle: 1906 bestanden, 0 fehlgeschlagen, 0 übersprungen | Serieller Lauf über alle Testprojekte |
+| Standardlauf, 13 Testprojekte | 1908 Fälle: 1908 bestanden, 0 fehlgeschlagen, 0 übersprungen | Serieller Lauf über alle Testprojekte |
 | Nativer x86-Lauf mit `VB6_REQUIRE_NATIVE_OCX=1` | 93/93 bestanden, 0 übersprungen | Getrennter x86-Lauf der WinForms-Tests |
-| Orakel-Gegenpruefung gegen VB6 SP6 | 9/9 bestanden, 0 übersprungen | Vergleich gegen VB6 SP6; deckt nur die Fläche ab, die ein Orakelfall stellt |
+| Orakel-Gegenpruefung gegen VB6 SP6 | 11/11 bestanden, 0 übersprungen | Vergleich gegen VB6 SP6; deckt nur die Fläche ab, die ein Orakelfall stellt |
 | VISIA-Analyse | 40/40 Projektitems, 0 Diagnosen | Analyse und Binden, keine Laufzeitabnahme der Anwendung |
 
 Vollständiges Gate (Standardlauf und nativer x86-Lauf auf demselben Quellstand): **True**.
@@ -42,8 +42,8 @@ zusätzlichen x86-Ausführungen — und wurde jahrelang als Testzahl gelesen. Se
 sie von Hand fortzuschreiben; Artefakte werden nicht versioniert.
 
 <!-- verification:roadmap-matrix:begin -->
-**Kompatibilitätsmatrix nach der Restplanung:** **189 Erwartungen**, davon **174 implemented**, **0 partial** und **15 planned**;
-**168/189 documented-verified**, 15 `not-yet-verified`, 6 `oracle-verified`.
+**Kompatibilitätsmatrix nach der Restplanung:** **189 Erwartungen**, davon **176 implemented**, **0 partial** und **13 planned**;
+**168/189 documented-verified**, 13 `not-yet-verified`, 8 `oracle-verified`.
 <!-- verification:roadmap-matrix:end -->
 
 Das sind Statuszahlen definierter Erwartungen, keine Prozentangabe der VB6-Kompatibilität.
@@ -555,21 +555,19 @@ kein Orakelfall geschrieben ist. Was kein Orakelfall stellt, bleibt `documented-
 
 | Karte | Ziel und Abnahme |
 | --- | --- |
-| `r1-cdate-time-only` | **`CDate` auf eine reine Zeitangabe:** der Datumsanteil bleibt der OLE-Epochentag, statt heute zu sein. |
-| `r1-dateadd-fractional-interval` | **`DateAdd` mit gebrochenem Intervall:** der gebrochene Anteil wird abgeschnitten, nicht gerundet. |
 | `r1-input-subtype` | **Subtyp der von `Input #` gelesenen Zahlen:** aus der Textform abgeleitet (`Decimal`, `Currency`), nicht pauschal `Double`. |
 | `r1-chdir-missing-directory` | **Fehlernummer von ChDir:** ein fehlendes Verzeichnis meldet 76 (Path not found), nicht 53. |
 | `r1-print-numeric-trailing-space` | **Nachlaufendes Leerzeichen von `Print`:** nach jeder Zahl und jedem Datum steht eines, nach String und Boolean nicht. |
 | `r1-module-name-rules` | **Namensregeln für Module und Bezeichner:** die drei vom Original durchgesetzten Regeln werden gemeldet statt stillschweigend angenommen. |
 
-Geschlossen sind inzwischen zehn Karten, in der Reihenfolge ihrer Schwere: das Bytelayout eines
+Geschlossen sind inzwischen zwölf Karten, in der Reihenfolge ihrer Schwere: das Bytelayout eines
 Strings bei `Put`,
 der `String * n` und die Werte von `Write #` — die drei, die **Dateien** verfälschten statt Werte
 oder Text und damit das Projektziel „ein altes `.vbp` wird ohne Quelltextänderung übersetzt" direkt
 brachen —, der Ergebnistyp von `/`, der einen **Wert** verfälschte, und die vier Ausgabekarten, die
 falschen Text bei richtigem Wert machten. Die Nachweise stehen im Changelog.
 
-Sechs Erwartungen der Matrix tragen seither `verification: oracle-verified`. Die Latte dafür steht
+Acht Erwartungen der Matrix tragen seither `verification: oracle-verified`. Die Latte dafür steht
 im Statusmodell oben; mechanisch geprüft wird nur ihre eine Hälfte. Der Wächter, der die Achse
 vorher auf null hielt, ist durch einen ersetzt, der sie prüft statt sie zu verbieten.
 
@@ -580,10 +578,9 @@ statt nur die Ausgabe verglichen — `Write #` schrieb ein Datum als Seriennumme
 ein Datumsliteral wurde, war sichtbar, dass `CDate` einer reinen Zeitangabe das heutige Datum
 gibt. Ein Vergleich von Ausgabe gegen Ausgabe hätte keinen der beiden gezeigt.
 
-Von den fünf verbliebenen verfälschen zwei einen **Wert**: `r1-cdate-time-only` macht dieselbe
-Uhrzeit tagesabhängig, `r1-dateadd-fractional-interval` rundet statt abzuschneiden.
-`r1-input-subtype` betrifft den beobachtbaren Subtyp, die übrigen beiden eine falsche Fehlernummer
-und ein fehlendes Leerzeichen.
+Keine der vier verbliebenen verfälscht noch einen **Wert**. `r1-input-subtype` betrifft den
+beobachtbaren Subtyp einer gelesenen Zahl, die übrigen drei eine falsche Fehlernummer, ein
+fehlendes Leerzeichen und eine Form, die das Original ablehnt, während wir sie annehmen.
 
 ### R5 — Forms, ActiveX und persistierte Artefakte
 
