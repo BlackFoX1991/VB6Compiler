@@ -191,10 +191,20 @@ public static class VBDateTime
 
     private static DateTime FromOleDate(double value) => DateTime.FromOADate(value);
 
-    private static int WholeIntervalCount(double value) =>
-        // DateAdd rounds a non-Long Number before applying the interval.  CLng is the shared
-        // VB conversion and deliberately preserves VB's banker's rounding at .5 boundaries.
-        VBConversions.CLng(value);
+    /// <summary>
+    /// <c>DateAdd</c> **truncates** a fractional interval toward zero; it does not round.
+    ///
+    /// Measured against VB6 SP6 on 2026-09-11 over all ten interval keys with 1.6, -1.6, 0.4 and
+    /// -0.4: <c>DateAdd("d", 1.6, …)</c> advances one day and <c>DateAdd("d", -1.6, …)</c> goes
+    /// back one, while ±0.4 changes nothing at all. Rounding gave two days and, on the negative
+    /// side, two back.
+    ///
+    /// Toward zero rather than downward is the half the sign makes visible: <c>Int</c> would turn
+    /// -1.6 into -2 and -0.4 into -1, and the original does neither. The earlier comment here
+    /// claimed rounding and named <c>CLng</c>'s banker's rule as a feature -- it was never checked
+    /// against an original, and 2.5 was the only value where both rules agree.
+    /// </summary>
+    private static int WholeIntervalCount(double value) => checked((int)Math.Truncate(value));
 
     private static double DateNumericValue(object? value, VBCompatibilityProfile compatibilityProfile)
     {

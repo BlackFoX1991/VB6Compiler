@@ -473,7 +473,25 @@ public static class VBConversions
 
     public static object CVDate(object? value) => new VBDateValue(CDate(value));
 
-    public static double CDate(object? value)
+    public static double CDate(object? value) => CDate(value, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>
+    /// Converts to a Date. Two rules here come from the original rather than from .NET, and both
+    /// only show on a **string** input -- measured against VB6 SP6 on 2026-09-11.
+    ///
+    /// A time without a date keeps the OLE epoch day: <c>CDate("18:30:45")</c> is
+    /// <c>0.771354166666667</c>, not today plus that time. <c>DateTime.Parse</c> fills the missing
+    /// date with <c>Today</c>, which made the same input produce a different value every day --
+    /// a program that reads a time and stores it wrote a new number each morning.
+    /// <c>NoCurrentDateDefault</c> is what turns that off; the sentinel it leaves behind is what
+    /// distinguishes "no date given" from a date that happens to be today.
+    ///
+    /// And the text is read under the **profile's** culture. <c>CDate("03.01.2020")</c> is the
+    /// third of January in the original under a German LCID; parsed invariantly it became the
+    /// first of March. That is the same locale boundary as <c>CStr</c>, one direction further:
+    /// reading, not writing.
+    /// </summary>
+    public static double CDate(object? value, VBCompatibilityProfile compatibilityProfile)
     {
         value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
@@ -497,11 +515,19 @@ public static class VBConversions
 
         if (value is string text)
         {
-            return DateTime.Parse(
-                    text,
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal)
-                .ToOADate();
+            var parsed = DateTime.Parse(
+                text,
+                VBNumberText.CultureFor(compatibilityProfile),
+                DateTimeStyles.AllowWhiteSpaces |
+                DateTimeStyles.AssumeLocal |
+                DateTimeStyles.NoCurrentDateDefault);
+
+            // NoCurrentDateDefault laesst fuer eine reine Zeitangabe den 01.01.0001 stehen. Das
+            // ist der Marker, den es sonst nicht gibt: Ein Datum von heute waere von einer
+            // fehlenden Angabe nicht zu unterscheiden.
+            return parsed.Date == default(DateTime).Date
+                ? parsed.TimeOfDay.TotalDays
+                : parsed.ToOADate();
         }
 
         return Convert.ToDouble(value, CultureInfo.InvariantCulture);
@@ -627,10 +653,13 @@ public static class VBConversions
         return CCur(value);
     }
 
-    public static double ConvertCDate(object? value)
+    public static double ConvertCDate(object? value) =>
+        ConvertCDate(value, VBCompatibilityProfile.Deterministic);
+
+    public static double ConvertCDate(object? value, VBCompatibilityProfile compatibilityProfile)
     {
         RejectImplicitError(value, nameof(DateTime));
-        return CDate(value);
+        return CDate(value, compatibilityProfile);
     }
 
     public static float ConvertCSng(object? value)
