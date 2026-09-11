@@ -174,7 +174,34 @@ public sealed class StringIntrinsicRuntimeTests
         Assert.AreEqual("-459.65", VBStrings.Str(-459.65));
         Assert.AreEqual(" 459.001", VBStrings.Str(459.001));
         Assert.AreEqual(" 0", VBStrings.Str(null));
-        Assert.ThrowsException<InvalidCastException>(() => VBStrings.Str("459"));
+
+        // Ein numerischer String wird umgewandelt statt abgewiesen -- gemessen am Original am
+        // 2026-09-11, wo Str("459") ' 459' liefert und nicht Fehler 13. Nur wirklich nicht
+        // numerischer Text meldet.
+        Assert.AreEqual(" 459", VBStrings.Str("459"));
+        Assert.ThrowsException<VB6TypeMismatchException>(() => VBStrings.Str("kein Wert"));
+    }
+
+    /// <summary>
+    /// Die drei Regeln von <c>Str</c>, die es von <c>CStr</c> unterscheiden, am Original gemessen:
+    /// keine Null vor dem Trenner, invariante Ziffern auch im SP6-Profil, und die Vorzeichenspalte
+    /// nur für Zahlen. <c>Str(True)</c> ist <c>True</c> ohne führendes Leerzeichen.
+    /// </summary>
+    [TestMethod]
+    public void Str_DropsTheZeroBeforeTheSeparatorAndStaysInvariant()
+    {
+        Assert.AreEqual(" .3333333", VBStrings.Str(1f / 3f));
+        Assert.AreEqual("-.00001", VBStrings.Str(-0.00001));
+        Assert.AreEqual(" .25", VBStrings.Str(VBCurrency.FromDecimal(0.25m)));
+        Assert.AreEqual(" 0", VBStrings.Str(0d));
+
+        // Im SP6-Profil bleibt Str beim Punkt, während CStr daneben dem System folgt.
+        Assert.AreEqual(
+            " .3333333",
+            VBStrings.Str(1f / 3f, VBCompatibilityProfile.VB6Sp6));
+
+        // Boolean und Datum tragen keine Vorzeichenspalte.
+        Assert.AreEqual("True", VBStrings.Str(true));
     }
 
     [TestMethod]
