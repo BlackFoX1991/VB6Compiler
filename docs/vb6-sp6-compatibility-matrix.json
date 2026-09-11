@@ -3280,17 +3280,55 @@
       "matrixEntry": "runtime-file-io",
       "milestone": "R1",
       "dependsOn": [],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Bytelayout der Werte von Write #",
       "expected": {
         "acceptance": "Write # schreibt Zahlen invariant in der Str-Form und ein Datum als #yyyy-mm-dd#, wie das Original."
+      },
+      "verification": "oracle-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/OracleFileLayoutTests.cs",
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs",
+        "tests/VB6.Parser.Tests/FileStatementParserTests.cs"
+      ],
+      "notes": "Gemessen am 2026-09-11 gegen VB6 SP6. Write #g, 1234.5, CSng(1)/CSng(3), CDate(\"2020-01-03\"), True, \"Text\" ergibt im Original 1234.5,.3333333,#2020-01-03#,#TRUE#,\"Text\" und bei uns 1234.5,0.33333334,43834,#TRUE#,\"Text\". Zwei Abweichungen: Eine Zahl wird in der **Str**-Form geschrieben -- invariant, sieben Stellen fuer einen Single, ohne fuehrende Null -- und ein Datum als Datumsliteral in Rauten statt als seine Seriennummer. Das Datum ist die schwerere der beiden: Eine so geschriebene Datei liest das Original mit Input # als Zahl zurueck statt als Datum, die Typinformation geht also verloren. Write # ist damit die dritte Ausgabeform mit eigener Locale-Regel neben CStr (System-LCID) und Str (invariant) -- und die dokumentierte Begruendung dafuer ist, dass eine mit Write # geschriebene Datei auf jeder Maschine mit Input # wieder lesbar sein soll. Abgeschlossen am 2026-09-11, und die Flaeche war breiter als die erste Zeile zeigte. Vier Befunde: (1) Zahlen stehen in der Str-Form -- invariant, in der Praezision des Typs, ohne die Null vor dem Trenner -- aber **ohne** die Vorzeichenspalte von Str. (2) Ein Datum ist ein Datumsliteral in Rauten, ohne Zeitanteil wenn es keinen hat: #2020-01-03# gegen #2020-01-03 18:30:45#. Die Ursache dafuer lag nicht in der Runtime, die das Literal laengst konnte, sondern im Lowerer: Ein Date ist im IR ein Double, und Print umhuellte es (LowerPrintItem), Write nicht -- dieselbe Form, zwei Aufrufer, einer vergessen. Der Helfer heisst jetzt LowerTextOutputItem und wird von beiden benutzt. (3) Write #f, ohne Werte schreibt eine Leerzeile; unsere Schleife erzeugte fuer eine leere Liste gar nichts, wodurch jede folgende Zeile eine nach oben rutschte. (4) Ein nachlaufendes Semikolon haelt den Satz offen -- das Original nimmt Write #f, 1; an und schreibt 1,, wir meldeten zwei VB6P0001. Daraus folgt eine Modellkorrektur in der Runtime: Das Trennzeichen steht **hinter** dem Wert, nicht davor. Innerhalb eines Satzes ist das dasselbe Ergebnis, sichtbar wird es nur am offenen Satzende -- und genau dort hat das Original entschieden. Das Feld WriteChannels, das die vorlaufende Form brauchte, ist damit entfallen. Gepruefte Bytes gegen das Original: alle 22 Formen, als **eine** Zeichenkette verglichen statt Zeile fuer Zeile, weil ein zeilenweiser Vergleich die fehlende Leerzeile stillschweigend uebersprungen haette. Gegenprobe: Datumsliteral und Str-Form je einmal zurueckgenommen, beide Male meldet der Orakelfall. Nicht Teil dieser Karte und dabei aufgefallen: Input # leitet den Subtyp aus der Textform ab (Decimal, Currency), wir lesen alles als Double -- r1-input-subtype.",
+      "title": "Bytelayout der Werte von Write #"
+    },
+    {
+      "id": "r1-cdate-time-only",
+      "matrixEntry": "runtime-standard-library",
+      "milestone": "R1",
+      "dependsOn": [],
+      "implementation": "planned",
+      "input": "CDate auf eine reine Zeitangabe",
+      "expected": {
+        "acceptance": "CDate(\"18:30:45\") behaelt den OLE-Epochentag 1899-12-30 wie das Original, statt das heutige Datum einzusetzen."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/DateTimeIntrinsicExecutionTests.cs"
+      ],
+      "notes": "Gemessen am 2026-09-11 gegen VB6 SP6, aufgefallen beim Schliessen von r1-write-value-layout. CDate(\"18:30:45\") ergibt im Original 0,771354166666667 -- der Datumsanteil ist null, also der 30.12.1899 -- und bei uns 46276,7713541667, also das heutige Datum plus die Uhrzeit. TimeValue(\"18:30:45\") stimmt dagegen auf beiden Seiten. Der Befund ist damit eng auf CDate begrenzt und macht dieselbe Zeitangabe **maschinen- und tagesabhaengig**: Ein Programm, das eine Uhrzeit einliest und speichert, schreibt bei uns jeden Tag einen anderen Wert. Aufgefallen ist er nur, weil Write # das Datum als Literal schreibt und der Datumsanteil dadurch sichtbar wurde -- als Seriennummer war er eine Zahl unter vielen.",
+      "title": "CDate auf eine reine Zeitangabe"
+    },
+    {
+      "id": "r1-input-subtype",
+      "matrixEntry": "runtime-file-io",
+      "milestone": "R1",
+      "dependsOn": [
+        "r1-write-value-layout"
+      ],
+      "implementation": "planned",
+      "input": "Subtyp der von Input # gelesenen Zahlen",
+      "expected": {
+        "acceptance": "Input # leitet den Variant-Subtyp aus der Textform ab wie das Original, statt jede Zahl als Double zu liefern."
       },
       "verification": "not-yet-verified",
       "testRefs": [
         "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"
       ],
-      "notes": "Gemessen am 2026-09-11 gegen VB6 SP6. Write #g, 1234.5, CSng(1)/CSng(3), CDate(\"2020-01-03\"), True, \"Text\" ergibt im Original 1234.5,.3333333,#2020-01-03#,#TRUE#,\"Text\" und bei uns 1234.5,0.33333334,43834,#TRUE#,\"Text\". Zwei Abweichungen: Eine Zahl wird in der **Str**-Form geschrieben -- invariant, sieben Stellen fuer einen Single, ohne fuehrende Null -- und ein Datum als Datumsliteral in Rauten statt als seine Seriennummer. Das Datum ist die schwerere der beiden: Eine so geschriebene Datei liest das Original mit Input # als Zahl zurueck statt als Datum, die Typinformation geht also verloren. Write # ist damit die dritte Ausgabeform mit eigener Locale-Regel neben CStr (System-LCID) und Str (invariant) -- und die dokumentierte Begruendung dafuer ist, dass eine mit Write # geschriebene Datei auf jeder Maschine mit Input # wieder lesbar sein soll.",
-      "title": "Bytelayout der Werte von Write #"
+      "notes": "Gemessen am 2026-09-11 gegen VB6 SP6. Eine mit Write # geschriebene Datei zurueckgelesen: Das Original liefert fuer .3333333 den Subtyp Decimal und fuer 1234.5678 Currency, wir liefern beide Male Double. TypeName ueber drei Werte ergibt im Original Decimal/Decimal/Currency und bei uns Double/Double/Double. Der Wert selbst stimmt in allen gemessenen Faellen; abweichend ist der Subtyp, und der ist in VB6 beobachtbar -- ueber TypeName, VarType und ueber das Rechenverhalten, weil Decimal und Currency anders runden als Double. Die Karte haengt an r1-write-value-layout, weil beide dieselbe Datei beschreiben: Erst seit Write # die Str-Form schreibt, ist die Textform ueberhaupt die des Originals, und vorher waere jede Subtyp-Regel auf den falschen Ziffern getestet worden.",
+      "title": "Subtyp der von Input # gelesenen Zahlen"
     },
     {
       "id": "r1-print-numeric-trailing-space",
@@ -3682,7 +3720,7 @@
       },
       "implementation": "partial",
       "verification": "not-yet-verified",
-      "gap": "r1-dateadd-fractional-interval: DateAdd mit gebrochenem Intervall",
+      "gap": "r1-dateadd-fractional-interval: DateAdd mit gebrochenem Intervall; r1-cdate-time-only: CDate auf eine reine Zeitangabe",
       "tests": [
         "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
         "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs",
@@ -3728,7 +3766,7 @@
       },
       "implementation": "partial",
       "verification": "not-yet-verified",
-      "gap": "r1-chdir-missing-directory: Fehlernummer von ChDir bei fehlendem Verzeichnis; r1-write-value-layout: Bytelayout der Werte von Write #; r1-print-numeric-trailing-space: Nachlaufendes Leerzeichen von Print bei Zahlen",
+      "gap": "r1-chdir-missing-directory: Fehlernummer von ChDir bei fehlendem Verzeichnis; r1-print-numeric-trailing-space: Nachlaufendes Leerzeichen von Print bei Zahlen; r1-input-subtype: Subtyp der von Input # gelesenen Zahlen",
       "tests": [
         "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
         "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs",

@@ -9512,3 +9512,51 @@ Mal meldet der Orakelfall.
 
 Kanonischer Lauf: 1903/1903 im Standardlauf, 93/93 nativ, 8/8 Orakel, VISIA 40/40, Gate
 vollständig. Matrix: 187 Erwartungen, davon 5 `oracle-verified`.
+
+## `Write #` schreibt wieder ein Format, das sich zurücklesen lässt — `r1-write-value-layout`
+
+Die letzte Karte, die **Dateiinhalte** verfälschte. `Write #` ist die dritte Ausgabefamilie neben
+`CStr` und `Str`, und als einzige folgt ihre Regel einem Zweck statt einer Locale: Eine so
+geschriebene Datei soll sich auf jeder Maschine mit `Input #` wieder lesen lassen. Sie ist deshalb
+invariant, schreibt Zahlen in der `Str`-Form und ein Datum als Datumsliteral.
+
+Vier Befunde, und keiner davon stand in der Karte allein:
+
+1. **Zahlen** in der `Str`-Form — invariant, in der Präzision des Typs, ohne die Null vor dem
+   Trenner (`.3333333`, `-.25`), aber **ohne** die Vorzeichenspalte, die `Str` hat.
+2. **Ein Datum als `#2020-01-03#`**, mit Zeitanteil nur wenn es einen hat. Wir schrieben `43833`.
+   Das war die schwerere Hälfte: Das Original liest so eine Datei als Zahl zurück, die
+   Typinformation geht also genau auf dem Rundlauf verloren, für den dieses Format existiert.
+   **Die Ursache lag nicht in der Runtime**, die das Literal längst konnte, sondern im Lowerer: Ein
+   Date ist im IR ein Double, `Print` umhüllte es und `Write` nicht — dieselbe Form, zwei Aufrufer,
+   einer vergessen. Der Helfer heißt jetzt `LowerTextOutputItem` und wird von beiden benutzt.
+3. **`Write #f,` ohne Werte** schreibt eine Leerzeile. Unsere Schleife erzeugte für eine leere
+   Liste gar nichts, wodurch jede folgende Zeile eine nach oben rutschte.
+4. **Ein nachlaufendes Semikolon** hält den Satz offen. Das Original nimmt `Write #f, 1;` an und
+   schreibt `1,`; wir meldeten zwei `VB6P0001`. Die Form kam nur ans Licht, weil eine Orakelsonde
+   sie benutzte.
+
+Aus dem vierten folgt eine Modellkorrektur: **Das Trennzeichen steht hinter dem Wert, nicht davor.**
+Innerhalb eines Satzes ist das dasselbe Ergebnis; sichtbar wird der Unterschied nur am offenen
+Satzende, und genau dort hat das Original entschieden. Das Feld `WriteChannels`, das die
+vorlaufende Form brauchte, ist damit entfallen.
+
+**Verglichen wurde die ganze Datei als eine Zeichenkette**, nicht Zeile für Zeile — ein
+zeilenweiser Vergleich hätte die fehlende Leerzeile stillschweigend übersprungen, und die war einer
+der vier Befunde. Dasselbe Muster wie beim Selbst-Roundtrip: Die Prüfform entscheidet mit, was
+sichtbar wird.
+
+**Zwei neue Karten** sind dabei entstanden, beide erst durch die Reparatur sichtbar:
+
+- `r1-cdate-time-only` — `CDate("18:30:45")` behält im Original den OLE-Epochentag (30.12.1899),
+  bei uns wird das **heutige** Datum eingesetzt. Dieselbe Uhrzeit ergibt damit jeden Tag einen
+  anderen Wert. Als Seriennummer war der Datumsanteil eine Zahl unter vielen; erst als `Write #`
+  ein Literal schrieb, stand er da. `TimeValue` stimmt.
+- `r1-input-subtype` — `Input #` leitet den Variant-Subtyp aus der Textform ab (`Decimal`,
+  `Currency`), wir lesen alles als `Double`.
+
+Gegenproben: Datumsliteral und `Str`-Form je einmal zurückgenommen, beide Male meldet der
+Orakelfall.
+
+Kanonischer Lauf: 1906/1906 im Standardlauf, 93/93 nativ, 9/9 Orakel, VISIA 40/40, Gate
+vollständig. Matrix: 189 Erwartungen, davon 6 `oracle-verified`.
