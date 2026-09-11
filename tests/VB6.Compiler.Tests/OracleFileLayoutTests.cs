@@ -165,6 +165,125 @@ public sealed class OracleFileLayoutTests
     }
 
     /// <summary>
+    /// The text <c>Write #</c> produces, line for line against the original.
+    ///
+    /// <c>Write #</c> is the third output family beside <c>CStr</c> and <c>Str</c>, and the only
+    /// one whose rule follows from a purpose rather than from a locale: a file written here has to
+    /// be readable with <c>Input #</c> on any machine. So it is invariant, it writes numbers in the
+    /// <c>Str</c> shape, and it writes a Date as a date literal rather than as the serial number
+    /// that would come back as a number.
+    ///
+    /// Read back with <c>Line Input</c> on purpose. A <c>Write</c>/<c>Input</c> round trip is the
+    /// pair that confirms itself, and it did: both defects here survived a passing round-trip case.
+    /// </summary>
+    [TestMethod]
+    public void Oracle_WritesTheSameSequentialTextForEveryValue()
+    {
+        if (!VB6Oracle.IsAvailable(out var reason))
+        {
+            if (VB6Oracle.IsRequired)
+            {
+                Assert.Fail(reason);
+            }
+
+            Assert.Inconclusive(reason);
+            return;
+        }
+
+        var statements = new[]
+        {
+            "    Write #vb6OracleUnit, CSng(1) / CSng(3)",
+            "    Write #vb6OracleUnit, CDbl(1) / CDbl(3)",
+            "    Write #vb6OracleUnit, CCur(0.25)",
+            "    Write #vb6OracleUnit, CCur(-0.25)",
+            "    Write #vb6OracleUnit, CDbl(-0.00001)",
+            "    Write #vb6OracleUnit, CDbl(1E+16)",
+            "    Write #vb6OracleUnit, CSng(0.00000001)",
+            "    Write #vb6OracleUnit, CInt(-7)",
+            "    Write #vb6OracleUnit, CByte(200)",
+            "    Write #vb6OracleUnit, True",
+            "    Write #vb6OracleUnit, False",
+            "    Write #vb6OracleUnit, CDate(\"\"2020-01-03\"\")".Replace("\"\"", "\""),
+            "    Write #vb6OracleUnit, CDate(\"2020-01-03 18:30:45\")",
+            "    Write #vb6OracleUnit, CDate(0)",
+            "    Write #vb6OracleUnit, Empty",
+            "    Write #vb6OracleUnit, Null",
+            "    Write #vb6OracleUnit, \"\"",
+            "    Write #vb6OracleUnit, \"a\"\"b\"",
+            "    Write #vb6OracleUnit, CVErr(5)",
+            "    Write #vb6OracleUnit, 1, 2, 3",
+            "    Write #vb6OracleUnit,",
+            "    Write #vb6OracleUnit, 1;"
+        };
+
+        var body = string.Join(
+            Environment.NewLine,
+            new[]
+            {
+                "    vb6OracleBytes = vb6OraclePath & \"folge.txt\"",
+                "    vb6OracleUnit = FreeFile",
+                "    Open vb6OracleBytes For Output As #vb6OracleUnit"
+            }
+            .Concat(statements)
+            .Concat(
+            [
+                "    Close #vb6OracleUnit",
+                "    Vb6OracleSay \"Write\", Vb6OracleZeilen(vb6OracleBytes)"
+            ]));
+
+        // Die Zeilen kommen als eine Zeichenkette zurueck, damit auch eine *fehlende* Zeile
+        // auffaellt: Ein Vergleich Zeile fuer Zeile haette die leere Zeile von 'Write #f,'
+        // stillschweigend uebersprungen, und genau die fehlte bei uns.
+        var helper = string.Join(
+            Environment.NewLine,
+            "Private vb6OracleBytes As String",
+            "Private vb6OracleUnit As Integer",
+            string.Empty,
+            "Public Function Vb6OracleZeilen(ByVal Pfad As String) As String",
+            "    Dim h As Integer",
+            "    Dim s As String",
+            "    Dim z As String",
+            "    h = FreeFile",
+            "    Open Pfad For Input As #h",
+            "    Do While Not EOF(h)",
+            "        Line Input #h, z",
+            "        s = s & \"<\" & z & \">\"",
+            "    Loop",
+            "    Close #h",
+            "    Vb6OracleZeilen = s",
+            "End Function");
+
+        OracleComparison comparison;
+        try
+        {
+            comparison = VB6Oracle.Ask(body, declarations: helper);
+        }
+        catch (OracleNeedsElevationException exception)
+        {
+            if (VB6Oracle.IsRequired)
+            {
+                Assert.Fail(exception.Message);
+            }
+
+            Assert.Inconclusive(exception.Message);
+            return;
+        }
+
+        Assert.IsTrue(comparison.BothRan, comparison.Describe());
+        Assert.AreEqual(
+            0,
+            comparison.MissingFromOurs.Count,
+            "Unsere Ausgabe fehlt für: " + string.Join(", ", comparison.MissingFromOurs));
+        Assert.AreEqual(0, comparison.Differences.Count, comparison.Describe());
+
+        // Die beiden Formen, die den Befund ausgemacht haben, ausdruecklich -- sonst ginge ein
+        // Fehler, den beide Seiten teilen, hier als Erfolg durch.
+        var geschrieben = comparison.Original.Values.GetValueOrDefault("Write", "(fehlt)");
+        StringAssert.Contains(geschrieben, "<.3333333>", "Zahlen stehen in der Str-Form.");
+        StringAssert.Contains(geschrieben, "<#2020-01-03#>", "Ein Datum ist ein Datumsliteral.");
+    }
+
+    /// <summary>
     /// The mode is what decides whether a String carries a descriptor -- for a variable-length one.
     /// A <c>String * n</c> does not take part in that distinction, and this case is the measurement
     /// that says so rather than the assumption: the same six bytes in Random mode as in Binary.

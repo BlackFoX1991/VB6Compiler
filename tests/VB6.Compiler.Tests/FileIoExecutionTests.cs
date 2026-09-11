@@ -231,6 +231,63 @@ public sealed class FileIoExecutionTests
             "True");
     }
 
+    /// <summary>
+    /// The bytes <c>Write #</c> produces, read back as text rather than through <c>Input #</c>.
+    ///
+    /// A <c>Write</c>/<c>Input</c> round trip is the pair that confirms itself -- the same shape
+    /// that hid the Binary string layout -- and it hid two defects here for as long. Measured
+    /// against VB6 SP6 on 2026-09-11: a number is written in the <c>Str</c> shape, invariant and
+    /// without the zero before the separator, and a Date is a date literal in hashes. We wrote
+    /// .NET round-trip digits and the Date's **serial number**, which the original reads back as a
+    /// number -- the type is lost on exactly the round trip this format exists for.
+    /// </summary>
+    [TestMethod]
+    public void EmitManagedApplication_WritesTheUniversalTextLayoutForEachValue()
+    {
+        var output = VB6TestProgram.RunLines("""
+            Sub Main()
+                Dim h As Integer
+                Dim zeile As String
+
+                Open "universal.txt" For Output As #1
+                Write #1, CSng(1) / CSng(3)
+                Write #1, CCur(0.25)
+                Write #1, CDbl(-0.00001)
+                Write #1, CDate("2020-01-03")
+                Write #1, CDate("2020-01-03 18:30:45")
+                Write #1, 1, 2, 3
+                Write #1,
+                Write #1, 1;
+                Close #1
+
+                h = FreeFile
+                Open "universal.txt" For Input As #h
+                Do While Not EOF(h)
+                    Line Input #h, zeile
+                    Debug.Print "[" & zeile & "]"
+                Loop
+                Close #h
+            End Sub
+            """);
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "[.3333333]",
+                "[.25]",
+                "[-.00001]",
+                "[#2020-01-03#]",
+                "[#2020-01-03 18:30:45#]",
+                "[1,2,3]",
+
+                // 'Write #f,' ohne Werte schreibt eine leere Zeile, und ein nachlaufendes
+                // Semikolon haelt den Satz offen -- dann bleibt das Trennzeichen stehen.
+                "[]",
+                "[1,]"
+            },
+            output);
+    }
+
     [TestMethod]
     public void EmitManagedApplication_WritesAndReadsScalarUdtRecords()
     {
