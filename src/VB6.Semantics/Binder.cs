@@ -5552,7 +5552,7 @@ public sealed class Binder
                         TypeSymbol.Variant);
                 }
 
-                var resultType = IsSingleDivisionOperand(left.Type) && IsSingleDivisionOperand(right.Type)
+                var resultType = IsSingleDivisionResult(left.Type, right.Type)
                     ? TypeSymbol.Single
                     : TypeSymbol.Double;
                 left = BindConversion(left, resultType);
@@ -5657,8 +5657,30 @@ public sealed class Binder
     private static bool IsFloatingOrFixedPointType(TypeSymbol type) =>
         type == TypeSymbol.Single || type == TypeSymbol.Double || type == TypeSymbol.Currency;
 
+    /// <summary>
+    /// The result type of <c>/</c>, measured across all 121 operand pairs against VB6 SP6 on
+    /// 2026-09-10.
+    ///
+    /// The rule is narrower than it looks from the documentation: the result is <c>Double</c>
+    /// *unless* one side is a <c>Single</c> and the other is no wider than a Single. It is not
+    /// "both operands are small", which is what this used to say -- <c>Integer / Integer</c> is
+    /// <c>Double</c> in the original, and reading it as <c>Single</c> cost precision in every such
+    /// division. And it is not the documented "one side is Single and the other is not Long,
+    /// Currency or Decimal" either: <c>Single / Double</c> and <c>Single / Date</c> both measured
+    /// <c>Double</c>.
+    ///
+    /// The compiler's own wider integers (<c>LongLong</c>, the unsigned types) stay out of the
+    /// narrow set on purpose. A modern extension never widens what VB6 semantics does.
+    /// </summary>
+    private static bool IsSingleDivisionResult(TypeSymbol left, TypeSymbol right) =>
+        (left == TypeSymbol.Single && IsSingleDivisionOperand(right)) ||
+        (right == TypeSymbol.Single && IsSingleDivisionOperand(left));
+
     private static bool IsSingleDivisionOperand(TypeSymbol type) =>
-        type == TypeSymbol.Byte || type == TypeSymbol.Integer || type == TypeSymbol.Single;
+        type == TypeSymbol.Byte ||
+        type == TypeSymbol.Integer ||
+        type == TypeSymbol.Boolean ||
+        type == TypeSymbol.Single;
 
     private static bool IsBitwiseOperandType(TypeSymbol type) =>
         IsNumericType(type) || type == TypeSymbol.Boolean;
