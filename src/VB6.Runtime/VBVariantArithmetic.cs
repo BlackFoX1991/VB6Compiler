@@ -567,10 +567,22 @@ public static partial class VBOperators
             return VariantNumericKind.Decimal;
         }
 
-        return IsSingleDivisionOperand(left) && IsSingleDivisionOperand(right)
+        return IsSingleDivisionResult(left, right)
             ? VariantNumericKind.Single
             : VariantNumericKind.Double;
     }
+
+    /// <summary>
+    /// The dynamic half of the same rule the binder applies statically: <c>/</c> yields Double
+    /// unless one side is a Single and the other is no wider than a Single.
+    ///
+    /// Measured against VB6 SP6 on 2026-09-10 over every operand pair. A Variant holding an
+    /// Integer divided by a Single is a Single; the same Variant holding a Double is not, which is
+    /// why this decision belongs to the value rather than to the declared type.
+    /// </summary>
+    private static bool IsSingleDivisionResult(object? left, object? right) =>
+        (left is float && IsSingleDivisionOperand(right)) ||
+        (right is float && IsSingleDivisionOperand(left));
 
     private static bool IsSingleDivisionOperand(object? value) =>
         value is null or byte or short or ushort or float or bool;
