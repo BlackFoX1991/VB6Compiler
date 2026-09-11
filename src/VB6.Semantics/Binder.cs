@@ -1720,7 +1720,8 @@ public sealed class Binder
                 BindFileNumber(fileWrite.FileNumber, variables, procedures),
                 fileWrite.Expressions
                     .Select(expression => BindExpression(expression, variables, procedures))
-                    .ToImmutableArray()),
+                    .ToImmutableArray(),
+                fileWrite.KeepsRecordOpen),
             LockStatementSyntax lockStatement => BindFileLock(
                 lockStatement.FileNumber,
                 lockStatement.Start,

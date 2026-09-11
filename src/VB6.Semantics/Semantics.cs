@@ -873,7 +873,8 @@ public sealed record BoundFilePrintStatement(
 
 public sealed record BoundFileWriteStatement(
     BoundExpression FileNumber,
-    ImmutableArray<BoundExpression> Expressions)
+    ImmutableArray<BoundExpression> Expressions,
+    bool KeepsRecordOpen = false)
     : BoundStatement(BoundNodeKind.FileWriteStatement);
 
 public sealed record BoundFileLockStatement(
