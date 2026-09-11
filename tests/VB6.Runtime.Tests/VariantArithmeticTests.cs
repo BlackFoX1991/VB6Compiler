@@ -72,17 +72,32 @@ public sealed class VariantArithmeticTests
         Assert.IsTrue(VBVariants.IsNull(VBOperators.NotVariant(nullValue)));
     }
 
+    /// <summary>
+    /// A Variant division is a Single only while a Single is actually involved. Measured against
+    /// VB6 SP6 on 2026-09-10 over every operand pair: two Integer Variants give a Double, and a
+    /// Single beside a Long, Currency, Date or Double gives a Double as well.
+    ///
+    /// This case asserted the opposite for the Integer pair -- it was a regression proof for an
+    /// unmeasured expectation, and the value it locked in lost eight significant digits.
+    /// </summary>
     [TestMethod]
-    public void Division_PromotesByteIntegerAndSingleVariantsToSingle()
+    public void Division_KeepsSingleVariantsOnlyBesideANarrowerOperand()
     {
-        var integerResult = VBOperators.DivideVariant((short)5, (short)2);
-        var singleResult = VBOperators.DivideVariant(5f, 2f);
+        Assert.IsInstanceOfType<double>(VBOperators.DivideVariant((short)5, (short)2));
+        Assert.IsInstanceOfType<double>(VBOperators.DivideVariant((byte)5, (byte)2));
+        Assert.IsInstanceOfType<double>(VBOperators.DivideVariant(5, 2));
 
-        Assert.IsInstanceOfType<float>(integerResult);
-        Assert.AreEqual(2.5f, integerResult);
+        var singleResult = VBOperators.DivideVariant(5f, 2f);
         Assert.IsInstanceOfType<float>(singleResult);
         Assert.AreEqual(2.5f, singleResult);
-        Assert.IsInstanceOfType<double>(VBOperators.DivideVariant(5, 2));
+        Assert.IsInstanceOfType<float>(VBOperators.DivideVariant(5f, (short)2));
+        Assert.IsInstanceOfType<float>(VBOperators.DivideVariant((short)5, 2f));
+        Assert.IsInstanceOfType<float>(VBOperators.DivideVariant(5f, true));
+
+        // Die Gegenseite der Ausnahme: breiter als Single heisst Double, auch mit einem Single
+        // daneben.
+        Assert.IsInstanceOfType<double>(VBOperators.DivideVariant(5f, 2));
+        Assert.IsInstanceOfType<double>(VBOperators.DivideVariant(5f, 2d));
     }
 
     [TestMethod]
