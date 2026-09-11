@@ -209,6 +209,38 @@ public sealed class FileStatementParserTests
         Assert.IsInstanceOfType<LiteralExpressionSyntax>(assignment.Expression);
     }
 
+    /// <summary>
+    /// A trailing semicolon on <c>Write #</c> holds the record open. The original accepts it; we
+    /// reported two <c>VB6P0001</c> for it -- "Unexpected token 'SemicolonToken'" -- and the form
+    /// only turned up because an oracle probe used it. Measured on 2026-09-11:
+    /// <c>Write #f, 1;</c> writes <c>1,</c>, so the delimiter stays where the record does not end.
+    /// </summary>
+    [TestMethod]
+    public void Parse_WriteKeepsTheRecordOpenAfterATrailingSemicolon()
+    {
+        var open = (FileWriteStatementSyntax)ParseSingleStatement("""
+            Write #1, 1;
+            """);
+
+        Assert.IsTrue(open.KeepsRecordOpen);
+        Assert.AreEqual(1, open.Expressions.Length);
+
+        var closed = (FileWriteStatementSyntax)ParseSingleStatement("""
+            Write #1, 1, 2
+            """);
+
+        Assert.IsFalse(closed.KeepsRecordOpen);
+        Assert.AreEqual(2, closed.Expressions.Length);
+
+        // Und die leere Ausgabeliste, die eine Leerzeile schreibt.
+        var leer = (FileWriteStatementSyntax)ParseSingleStatement("""
+            Write #1,
+            """);
+
+        Assert.AreEqual(0, leer.Expressions.Length);
+        Assert.IsFalse(leer.KeepsRecordOpen);
+    }
+
     private static StatementSyntax ParseSingleStatement(string statement)
     {
         var source = $"""
