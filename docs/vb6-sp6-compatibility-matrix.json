@@ -3187,16 +3187,18 @@
       "matrixEntry": "runtime-variant-and-conversions",
       "milestone": "R1",
       "dependsOn": [],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Dezimaltrenner von CStr im SP6-Profil",
       "expected": {
         "acceptance": "CStr folgt im vb6-sp6-Profil der System-LCID wie das Original; Str bleibt invariant."
       },
-      "verification": "not-yet-verified",
+      "verification": "oracle-verified",
       "testRefs": [
-        "tests/VB6.Compiler.Tests/OracleNumberFormattingTests.cs"
+        "tests/VB6.Compiler.Tests/OracleNumberFormattingTests.cs",
+        "tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/MathIntrinsicExecutionTests.cs"
       ],
-      "notes": "Gemessen am 2026-09-10 gegen VB6 SP6 auf einem System mit deutscher LCID. CStr(CSng(1)/CSng(3)) ergibt im Original '0,3333333', bei uns '0.3333333'; dasselbe fuer Double, Currency und die kleinen Werte -- neun der zwoelf gemessenen Abweichungen sind dieser eine Trenner. Die naheliegende Erklaerung waere die entschiedene Profildifferenz, und sie ist falsch: Der Vergleich laeuft bereits mit --compatibility vb6-sp6, und Format antwortet auf derselben Seite mit Komma. Das Profil ist also aktiv, und CStr geht daran vorbei. Gegenprobe im selben Lauf, die die Regel schaerft: Str ist im Original invariant -- es antwortet '.3333333' mit Punkt, waehrend CStr daneben mit Komma antwortet. Die beiden Funktionen unterscheiden sich in VB6 also genau hier, und unsere Umsetzung macht es umgekehrt herum falsch.",
+      "notes": "Gemessen am 2026-09-10 gegen VB6 SP6 auf einem System mit deutscher LCID. CStr(CSng(1)/CSng(3)) ergibt im Original '0,3333333', bei uns '0.3333333'; dasselbe fuer Double, Currency und die kleinen Werte -- neun der zwoelf gemessenen Abweichungen sind dieser eine Trenner. Die naheliegende Erklaerung waere die entschiedene Profildifferenz, und sie ist falsch: Der Vergleich laeuft bereits mit --compatibility vb6-sp6, und Format antwortet auf derselben Seite mit Komma. Das Profil ist also aktiv, und CStr geht daran vorbei. Gegenprobe im selben Lauf, die die Regel schaerft: Str ist im Original invariant -- es antwortet '.3333333' mit Punkt, waehrend CStr daneben mit Komma antwortet. Die beiden Funktionen unterscheiden sich in VB6 also genau hier, und unsere Umsetzung macht es umgekehrt herum falsch. Abgeschlossen am 2026-09-11. CStr, Format, Debug.Print/Print # und der &-Operator folgen im vb6-sp6-Profil jetzt der System-LCID, Str bleibt invariant -- genau die Aufteilung, die das Original zeigt. Der &-Operator war dabei der unauffaelligste der vier: Er wandelt seine Operanden wie CStr, steht aber im Quelltext nirgends als Konvertierung, weshalb eine Zahl noch mit invariantem Trenner in ein Print oder eine MsgBox gelangte, nachdem CStr laengst richtig war. Dieselbe Messung hat den Vertrag ueber Zahlen hinaus erweitert: Auch ein Datum ist locale-behaftet -- CStr eines Datums ergibt im Original 31.12.1999 und nicht 1999-12-31. Grenze des Nachweises: Der Orakelvergleich laeuft auf einer Maschine mit deutscher LCID; auf einer mit englischer waeren beide Seiten trivial gleich. Das ist die Eigenart jedes Orakelfalls -- er vergleicht zwei Programme auf einer Maschine -- und hier besonders zu nennen, weil der Befund selbst die LCID ist.",
       "title": "Dezimaltrenner von CStr im SP6-Profil"
     },
     {
@@ -3204,16 +3206,18 @@
       "matrixEntry": "runtime-variant-and-conversions",
       "milestone": "R1",
       "dependsOn": [],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Schwelle zur Exponentialschreibweise",
       "expected": {
         "acceptance": "Eine Zahl wird erst dort exponentiell geschrieben, wo das Original es tut."
       },
-      "verification": "not-yet-verified",
+      "verification": "oracle-verified",
       "testRefs": [
-        "tests/VB6.Compiler.Tests/OracleNumberFormattingTests.cs"
+        "tests/VB6.Compiler.Tests/OracleNumberFormattingTests.cs",
+        "tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/MathIntrinsicExecutionTests.cs"
       ],
-      "notes": "Gemessen am 2026-09-10. CStr(CDbl(0.00001)) ergibt im Original '0,00001' ausgeschrieben, bei uns '1E-05'. Die Schwelle, ab der VB6 auf Exponentialschreibweise wechselt, liegt also woanders als bei uns. Im selben Lauf stimmt die obere Richtung: CStr(CSng(123456789)) ergibt auf beiden Seiten '1,234568E+08' beziehungsweise '1.234568E+08', dieselbe Mantisse und derselbe Exponent -- der Befund betrifft die kleine Seite, nicht beide.",
+      "notes": "Gemessen am 2026-09-10. CStr(CDbl(0.00001)) ergibt im Original '0,00001' ausgeschrieben, bei uns '1E-05'. Die Schwelle, ab der VB6 auf Exponentialschreibweise wechselt, liegt also woanders als bei uns. Im selben Lauf stimmt die obere Richtung: CStr(CSng(123456789)) ergibt auf beiden Seiten '1,234568E+08' beziehungsweise '1.234568E+08', dieselbe Mantisse und derselbe Exponent -- der Befund betrifft die kleine Seite, nicht beide. Abgeschlossen am 2026-09-11, und die Schwelle war weiter von unserer entfernt als die eine gemessene Zeile vermuten liess: Das Original schreibt einen Double bis 10^-15 aus und einen Single bis 10^-7, wir wechselten schon bei 10^-5. Die Regel ist keine Exponentenschwelle -- das war der erste, falsche Entwurf. Gemessen ueber alle Zehnerpotenzen von 10^-20 bis 10^18 in beiden Typen, dazu krumme Mantissen an jeder Grenze: Ausgeschrieben wird, solange die Ziffernzahl die Praezision des Typs nicht uebersteigt -- bei |x| >= 1 die Vorkommastellen, sonst die Nachkommastellen einschliesslich der fuehrenden Nullen. Der Fall, der jede Exponentenfassung widerlegt: Ein Single mit 1E-5 wird ausgeschrieben (0,00001), derselbe Exponent mit sieben Mantissenstellen nicht (1,234567E-05). Umgesetzt in VBNumberText, das seither der einzige Ort ist, an dem CStr, General Number, Print und Str ihre Ziffern herbekommen.",
       "title": "Schwelle zur Exponentialschreibweise"
     },
     {
@@ -3221,16 +3225,18 @@
       "matrixEntry": "runtime-standard-library",
       "milestone": "R1",
       "dependsOn": [],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "General Number auf einem Single",
       "expected": {
         "acceptance": "Format(wert, 'General Number') gibt fuer ein Single so viele signifikante Stellen aus wie das Original."
       },
-      "verification": "not-yet-verified",
+      "verification": "oracle-verified",
       "testRefs": [
-        "tests/VB6.Compiler.Tests/OracleNumberFormattingTests.cs"
+        "tests/VB6.Compiler.Tests/OracleNumberFormattingTests.cs",
+        "tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/MathIntrinsicExecutionTests.cs"
       ],
-      "notes": "Gemessen am 2026-09-10. Format(CSng(1)/CSng(3), 'General Number') ergibt im Original '0,3333333' -- sieben signifikante Stellen -- und bei uns '0,333333343267441', also fuenfzehn. Beide Seiten benutzen hier das Komma, es ist also kein Locale-Befund, sondern die Stellenzahl. Das trifft genau die G7/G15/G29-Staffelung, deren Begruendung am selben Tag widerlegt wurde ('1 / 3 ist in VB6 ein Single' -- es ist ein Double): Die Staffelung selbst gilt weiter, sie wird hier fuer Format nur nicht angewandt. Fuer Double stimmt es -- Format(CDbl(1)/CDbl(3), 'General Number') weicht nicht ab -- der Befund betrifft allein den Single-Fall.",
+      "notes": "Gemessen am 2026-09-10. Format(CSng(1)/CSng(3), 'General Number') ergibt im Original '0,3333333' -- sieben signifikante Stellen -- und bei uns '0,333333343267441', also fuenfzehn. Beide Seiten benutzen hier das Komma, es ist also kein Locale-Befund, sondern die Stellenzahl. Das trifft genau die G7/G15/G29-Staffelung, deren Begruendung am selben Tag widerlegt wurde ('1 / 3 ist in VB6 ein Single' -- es ist ein Double): Die Staffelung selbst gilt weiter, sie wird hier fuer Format nur nicht angewandt. Fuer Double stimmt es -- Format(CDbl(1)/CDbl(3), 'General Number') weicht nicht ab -- der Befund betrifft allein den Single-Fall. Abgeschlossen am 2026-09-11. Ein blosses \"originalValue is float -> G7\" haette nur die Haelfte geschlossen: General Number ist gemessen Zeichen fuer Zeichen dasselbe wie CStr, also auch an den Schwellen, und die trifft der G-Spezifizierer ebenfalls nicht. Deshalb ruft Format jetzt denselben Renderer wie CStr, statt die Staffelung ein zweites Mal nachzubauen -- die Doppelung war die Ursache, nicht die Zahl 15.",
       "title": "General Number auf einem Single"
     },
     {
@@ -3238,17 +3244,70 @@
       "matrixEntry": "runtime-standard-library",
       "milestone": "R1",
       "dependsOn": [],
-      "implementation": "planned",
+      "implementation": "implemented",
       "input": "Fuehrende Null von Str",
       "expected": {
         "acceptance": "Str laesst die fuehrende Null vor dem Dezimaltrenner weg, wie das Original."
       },
+      "verification": "oracle-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/OracleNumberFormattingTests.cs",
+        "tests/VB6.Runtime.Tests/StringIntrinsicRuntimeTests.cs",
+        "tests/VB6.Compiler.Tests/MathIntrinsicExecutionTests.cs"
+      ],
+      "notes": "Gemessen am 2026-09-10. Str(CSng(1)/CSng(3)) ergibt im Original '.3333333' und Str(CDbl(1)/CDbl(3)) '.333333333333333' -- ohne fuehrende Null. Bei uns steht dort '0.3333333' beziehungsweise '0.333333333333333'. Das fuehrende Leerzeichen fuer positive Zahlen stimmt dagegen: Str(CLng(42)) und Str(CLng(-42)) weichen nicht ab. Der Befund ist also eng auf die Null vor dem Trenner begrenzt, nicht auf die Vorzeichenbehandlung. Abgeschlossen am 2026-09-11. Dieselbe Messung hat zwei weitere Abweichungen von Str gezeigt, die die Karte nicht nannte und die mitgeschlossen sind, weil sie zur selben Funktion gehoeren: Str ist **invariant**, auch im SP6-Profil, waehrend CStr daneben der System-LCID folgt -- unsere Umsetzung hatte es genau andersherum. Und Str wies jeden nicht numerischen Variant mit Fehler 13 ab, wo das Original antwortet: Str(True) ist True, Str eines Datums der Datumstext, Str(Empty) ist \" 0\" (CStr(Empty) dagegen die leere Zeichenkette), und ein String wird erst ueber die System-LCID zur Zahl -- weshalb Str(\"12.5\") unter deutscher LCID \" 125\" ergibt, der Punkt also als Tausendertrenner gelesen wird. Die Vorzeichenspalte und die fehlende Null gelten dabei nur fuer Zahlen: True kommt ohne fuehrendes Leerzeichen.",
+      "title": "Fuehrende Null von Str"
+    },
+    {
+      "id": "r1-dateadd-fractional-interval",
+      "matrixEntry": "runtime-standard-library",
+      "milestone": "R1",
+      "dependsOn": [],
+      "implementation": "planned",
+      "input": "DateAdd mit gebrochenem Intervall",
+      "expected": {
+        "acceptance": "DateAdd schneidet den gebrochenen Anteil des Intervalls ab wie das Original, statt zu runden."
+      },
       "verification": "not-yet-verified",
       "testRefs": [
-        "tests/VB6.Compiler.Tests/OracleNumberFormattingTests.cs"
+        "tests/VB6.Compiler.Tests/DateTimeIntrinsicExecutionTests.cs"
       ],
-      "notes": "Gemessen am 2026-09-10. Str(CSng(1)/CSng(3)) ergibt im Original '.3333333' und Str(CDbl(1)/CDbl(3)) '.333333333333333' -- ohne fuehrende Null. Bei uns steht dort '0.3333333' beziehungsweise '0.333333333333333'. Das fuehrende Leerzeichen fuer positive Zahlen stimmt dagegen: Str(CLng(42)) und Str(CLng(-42)) weichen nicht ab. Der Befund ist also eng auf die Null vor dem Trenner begrenzt, nicht auf die Vorzeichenbehandlung.",
-      "title": "Fuehrende Null von Str"
+      "notes": "Gemessen am 2026-09-11 gegen VB6 SP6, als Nebenbefund beim Schliessen der vier Ausgabekarten. DateAdd(\"d\", 1.6, CDate(43832)) ergibt im Original den 03.01.2020, bei uns den 04.01.2020: Das Original schneidet den gebrochenen Intervallanteil ab, wir runden ihn. Der Befund lag seit jeher in einem bestehenden Test (EmitManagedApplication_PassesSelectedProfileToDateTimeIntrinsics erwartete 2020-01-04), war dort aber als Regressionsanker notiert und nie gegen ein Original geprueft -- dasselbe Muster wie bei r1-division-result-type. Der Test traegt den Ist-Wert weiter und nennt die Abweichung im Kommentar. Nicht gemessen und mitzuklaeren, sobald die Karte drankommt: die uebrigen Intervallkennungen (yyyy, m, h, n, s) und negative gebrochene Intervalle.",
+      "title": "DateAdd mit gebrochenem Intervall"
+    },
+    {
+      "id": "r1-write-value-layout",
+      "matrixEntry": "runtime-file-io",
+      "milestone": "R1",
+      "dependsOn": [],
+      "implementation": "planned",
+      "input": "Bytelayout der Werte von Write #",
+      "expected": {
+        "acceptance": "Write # schreibt Zahlen invariant in der Str-Form und ein Datum als #yyyy-mm-dd#, wie das Original."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"
+      ],
+      "notes": "Gemessen am 2026-09-11 gegen VB6 SP6. Write #g, 1234.5, CSng(1)/CSng(3), CDate(\"2020-01-03\"), True, \"Text\" ergibt im Original 1234.5,.3333333,#2020-01-03#,#TRUE#,\"Text\" und bei uns 1234.5,0.33333334,43834,#TRUE#,\"Text\". Zwei Abweichungen: Eine Zahl wird in der **Str**-Form geschrieben -- invariant, sieben Stellen fuer einen Single, ohne fuehrende Null -- und ein Datum als Datumsliteral in Rauten statt als seine Seriennummer. Das Datum ist die schwerere der beiden: Eine so geschriebene Datei liest das Original mit Input # als Zahl zurueck statt als Datum, die Typinformation geht also verloren. Write # ist damit die dritte Ausgabeform mit eigener Locale-Regel neben CStr (System-LCID) und Str (invariant) -- und die dokumentierte Begruendung dafuer ist, dass eine mit Write # geschriebene Datei auf jeder Maschine mit Input # wieder lesbar sein soll.",
+      "title": "Bytelayout der Werte von Write #"
+    },
+    {
+      "id": "r1-print-numeric-trailing-space",
+      "matrixEntry": "runtime-file-io",
+      "milestone": "R1",
+      "dependsOn": [],
+      "implementation": "planned",
+      "input": "Nachlaufendes Leerzeichen von Print bei Zahlen",
+      "expected": {
+        "acceptance": "Print schreibt nach jeder Zahl und jedem Datum ein Leerzeichen, wie das Original."
+      },
+      "verification": "not-yet-verified",
+      "testRefs": [
+        "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs"
+      ],
+      "notes": "Gemessen am 2026-09-11 gegen VB6 SP6. Print #g, 42 schreibt im Original \" 42 \", bei uns \" 42\". Das fuehrende Leerzeichen ist die Vorzeichenspalte und stimmt seit langem; das **nachlaufende** fehlt uns. Es steht nach jeder Zahl und nach jedem Datum -- \" 42  7 \" fuer Print #g, 42; 7, also zwei Leerzeichen zwischen den Werten -- und ausdruecklich nicht nach einem String oder einem Boolean: Print #g, \"A\"; \"B\" ergibt \"AB\" und Print #g, True ergibt \"True\". Der Befund faellt in keiner E2E-Pruefung auf, weil VB6TestProgram die Zeilen bewusst trimmt; gefunden wurde er erst beim Zuruecklesen einer geschriebenen Datei mit Line Input.",
+      "title": "Nachlaufendes Leerzeichen von Print bei Zahlen"
     },
     {
       "id": "r1-division-result-type",
@@ -3586,9 +3645,9 @@
         "bitness": "agnostic except LongPtr",
         "com": "Automation VARTYPE mapping is preserved"
       },
-      "implementation": "partial",
-      "verification": "not-yet-verified",
-      "gap": "r1-cstr-locale: Dezimaltrenner von CStr im SP6-Profil; r1-number-notation-threshold: Schwelle zur Exponentialschreibweise",
+      "implementation": "implemented",
+      "verification": "documented-verified",
+      "gap": "",
       "tests": [
         "tests/VB6.Runtime.Tests/VariantStateTests.cs",
         "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
@@ -3623,7 +3682,7 @@
       },
       "implementation": "partial",
       "verification": "not-yet-verified",
-      "gap": "r1-format-general-single: General Number auf einem Single; r1-str-leading-zero: Fuehrende Null von Str",
+      "gap": "r1-dateadd-fractional-interval: DateAdd mit gebrochenem Intervall",
       "tests": [
         "tests/VB6.Runtime.Tests/StringFunctionTests.cs",
         "tests/VB6.Compiler.Tests/ScalarStringIntrinsicExecutionTests.cs",
@@ -3669,7 +3728,7 @@
       },
       "implementation": "partial",
       "verification": "not-yet-verified",
-      "gap": "r1-chdir-missing-directory: Fehlernummer von ChDir bei fehlendem Verzeichnis",
+      "gap": "r1-chdir-missing-directory: Fehlernummer von ChDir bei fehlendem Verzeichnis; r1-write-value-layout: Bytelayout der Werte von Write #; r1-print-numeric-trailing-space: Nachlaufendes Leerzeichen von Print bei Zahlen",
       "tests": [
         "tests/VB6.Runtime.Tests/FileRuntimeTests.cs",
         "tests/VB6.Compiler.Tests/FileIoExecutionTests.cs",

@@ -9452,3 +9452,63 @@ vollständig. Der erste Versuch meldete 92/93 nativ, und zwar an
 Control liest diesen Parameter über `GetKeyState` aus dem **physischen** Tastaturzustand statt aus
 der synthetischen Nachricht. Isoliert sofort wieder grün; als Falle notiert, weil die Meldung wie
 eine Regression im Eventpfad aussieht.
+
+## Die vier Ausgabekarten sind geschlossen — und haben drei neue Befunde freigelegt
+
+`r1-cstr-locale`, `r1-number-notation-threshold`, `r1-format-general-single` und
+`r1-str-leading-zero` in einem Durchgang, weil sie dieselbe Fläche betreffen: wie aus einer Zahl
+Text wird.
+
+**Gemessen wurde breiter als die Karten es verlangten**, und das hat sich zweimal gelohnt.
+
+Die **Schwelle zur Exponentialschreibweise** war der Kern. Die Karte nannte einen Wert —
+`CStr(CDbl(0.00001))` ergibt im Original `0,00001` und bei uns `1E-05`. Gemessen über alle
+Zehnerpotenzen von 10⁻²⁰ bis 10¹⁸ in beiden Typen stellte sich heraus: Das Original schreibt einen
+Double bis **10⁻¹⁵** aus und einen Single bis **10⁻⁷**. Der erste Regelentwurf — eine
+Exponentenschwelle, nur an anderer Stelle als bei .NET — ist an einem eigens dafür gesuchten
+Gegenbeispiel gescheitert: `CSng(0.00001)` wird ausgeschrieben, `CSng(0.00000123)` nicht, bei
+praktisch gleichem Exponenten. Die tragende Regel zählt **Ziffern**, nicht Exponenten: Fest
+geschrieben wird, solange die Ziffernzahl die Präzision des Typs nicht übersteigt — bei |x| ≥ 1 die
+Vorkommastellen, sonst die Nachkommastellen einschließlich der führenden Nullen. Fünf weitere
+Vorhersagen dieser Regel wurden anschließend gegen das Original geprüft und keine widerlegt.
+
+Daraus folgt der Schnitt: **`VBNumberText` ist jetzt der einzige Ort**, an dem `CStr`,
+`Format(…, "General Number")`, `Debug.Print`/`Print #`, der `&`-Operator und `Str` ihre Ziffern
+herbekommen. `General Number` ist gemessen Zeichen für Zeichen dasselbe wie `CStr` — ein
+`is float → G7` hätte die Karte scheinbar geschlossen und die Schwelle verfehlt.
+
+Beim **Locale** war die naheliegende Erklärung schon vorher widerlegt. Neu ist, wie viele Stellen
+daran hängen: Der `&`-Operator wandelt wie `CStr`, steht im Quelltext aber nirgends als
+Konvertierung — also blieb eine Zahl dort noch invariant, nachdem `CStr` längst richtig war.
+Aufgefallen ist das nur, weil die Sonde ihre Werte verkettet ausgibt. Und ein **Datum** ist
+ebenfalls locale-behaftet: `CStr` eines Datums ist `31.12.1999`.
+
+`Str` hatte zwei Abweichungen mehr, als die Karte nannte, beide zur selben Funktion gehörend und
+deshalb mitgeschlossen: Es ist **invariant**, auch im SP6-Profil — wir hatten `Str` und `CStr`
+genau vertauscht — und es wies jeden nicht numerischen Variant mit Fehler 13 ab, wo das Original
+antwortet. `Str(True)` ist `True`, `Str(Empty)` ist `" 0"` (während `CStr(Empty)` die leere
+Zeichenkette ist), und ein String wird erst über die System-LCID zur Zahl: `Str("12.5")` ergibt
+unter deutscher LCID `" 125"`, der Punkt wird also als Tausendertrenner gelesen.
+
+**Drei neue Karten sind dabei entstanden**, alle drei erst sichtbar, als eine geschriebene Datei
+zurückgelesen wurde statt nur die Ausgabe verglichen:
+
+- `r1-write-value-layout` — `Write #` schreibt einen Single mit .NET-Rundlaufstellen statt in der
+  `Str`-Form und ein Datum als **Seriennummer** statt als `#2020-01-03#`. Die Typinformation geht
+  damit verloren: Das Original liest so eine Datei mit `Input #` als Zahl zurück.
+- `r1-dateadd-fractional-interval` — `DateAdd("d", 1.6, …)` schneidet im Original den gebrochenen
+  Anteil ab, wir runden ihn. Der Befund lag seit jeher in einem bestehenden Test, der ihn als
+  Erwartung trug.
+- `r1-print-numeric-trailing-space` — `Print` schreibt nach jeder Zahl und jedem Datum ein
+  Leerzeichen, nach String und Boolean nicht. Kein E2E-Fall konnte das sehen: Die Testhelfer
+  trimmen ihre Zeilen bewusst.
+
+Drei bestehende Tests trugen die alten Zusagen. Einer hieß
+`KeepDebugAndFinancialOutputStableAcrossProfiles` und behauptete für beide Profile dieselbe
+Ausgabe — genau die Stabilität, die der Defekt war.
+
+Gegenproben: Jede der drei Regeln — Locale, Schwelle, führende Null — einmal zurückgenommen, jedes
+Mal meldet der Orakelfall.
+
+Kanonischer Lauf: 1903/1903 im Standardlauf, 93/93 nativ, 8/8 Orakel, VISIA 40/40, Gate
+vollständig. Matrix: 187 Erwartungen, davon 5 `oracle-verified`.
