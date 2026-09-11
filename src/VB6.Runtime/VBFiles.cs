@@ -435,7 +435,9 @@ public static class VBFiles
 
         WritePrintText(
             stream,
-            value is VBPrintPosition position ? VBDebug.ResolvePrintPosition(position, lineLength) : VBDebug.Format(value),
+            value is VBPrintPosition position
+                ? VBDebug.ResolvePrintPosition(position, lineLength)
+                : VBDebug.Format(value, compatibilityProfile),
             width,
             ref lineLength,
             TextEncoding(compatibilityProfile));

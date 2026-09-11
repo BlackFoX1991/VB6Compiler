@@ -578,23 +578,76 @@ public static class VBStrings
     }
 
     /// <summary>Formats a numeric value using VB6's leading sign space and invariant decimal point.</summary>
-    public static string Str(object? value)
+    /// <summary>
+    /// <c>Str</c> -- the invariant sibling of <c>CStr</c>, with two cosmetic rules of its own.
+    ///
+    /// Measured against VB6 SP6 on 2026-09-11, all three parts at once:
+    /// <list type="bullet">
+    /// <item>It stays **invariant** where <c>CStr</c> follows the system LCID. In the same run the
+    /// original answered <c>.3333333</c> for <c>Str</c> and <c>0,3333333</c> for <c>CStr</c>, so
+    /// the two functions differ exactly here and our implementation had it the other way round.</item>
+    /// <item>It drops the zero before the separator: <c> .3333333</c>, <c>-.00001</c>. The value
+    /// keeps its sign, and a negative loses the zero just the same.</item>
+    /// <item>A non-negative value keeps its leading space, which is the sign column.</item>
+    /// </list>
+    ///
+    /// A non-numeric Variant does **not** raise: <c>Str(True)</c> is <c>True</c>, <c>Str</c> of a
+    /// Date is the date's text, and <c>Str(Empty)</c> is <c> 0</c> -- where <c>CStr(Empty)</c> is
+    /// the empty string. A String is converted through the system LCID first and rendered
+    /// invariantly afterwards, which is why <c>Str("12.5")</c> under a German locale is <c> 125</c>:
+    /// the point is read as a thousands separator. We raised error 13 for all of these.
+    /// </summary>
+    public static string Str(object? value) => Str(value, VBCompatibilityProfile.Deterministic);
+
+    public static string Str(object? value, VBCompatibilityProfile compatibilityProfile)
     {
         value = VBVariantObject.ResolveDefaultValue(value);
-        if (value is not null and not byte and not short and not int and not long and
-            not float and not double and not decimal and not VBCurrency and not IntPtr)
+        VBVariants.ThrowIfArray(value);
+        VBVariants.ThrowIfNull(value);
+        VBVariants.ThrowIfMissing(value);
+
+        // Ein String wird erst zur Zahl -- und zwar mit der Kultur des Profils, weil das Original
+        // hier die System-LCID benutzt. Erst das Ergebnis ist wieder invariant.
+        if (value is string text)
         {
-            throw new InvalidCastException("VB6 Str requires a numeric value.");
+            if (!IsNumeric(text, compatibilityProfile) ||
+                !double.TryParse(
+                    text.Trim(),
+                    System.Globalization.NumberStyles.Float |
+                    System.Globalization.NumberStyles.AllowThousands,
+                    FormatCulture(compatibilityProfile),
+                    out var parsedNumber))
+            {
+                throw new VB6TypeMismatchException("VB6 Str requires a numeric value.");
+            }
+
+            value = parsedNumber;
         }
 
-        var text = VBConversions.CStr(value);
-        if (text.Length == 0)
+        // Empty ist bei Str eine Null, bei CStr die leere Zeichenkette.
+        value ??= 0;
+
+        // Die Vorzeichenspalte und die fehlende Null gelten nur fuer eine Zahl. Ein Boolean kommt
+        // als 'True' heraus und ein Datum als sein Datumstext -- beide ohne fuehrendes Leerzeichen,
+        // gemessen am Original.
+        var rendered = VBConversions.CStr(value, compatibilityProfile);
+        if (!IsNumeric(value, compatibilityProfile) || value is bool)
         {
-            text = "0";
+            return rendered;
         }
 
-        return text[0] == '-' ? text : " " + text;
+        // Die Ziffern selbst sind invariant, auch wenn CStr daneben der System-LCID folgt.
+        rendered = DropLeadingZero(VBConversions.CStr(value, VBCompatibilityProfile.Deterministic));
+        return rendered.StartsWith('-') ? rendered : " " + rendered;
     }
+
+    /// <summary>Removes the zero in front of the decimal separator, keeping any sign.</summary>
+    private static string DropLeadingZero(string text) => text switch
+    {
+        ['0', '.', ..] => text[1..],
+        ['-', '0', '.', ..] => "-" + text[2..],
+        _ => text
+    };
 
     /// <summary>Creates a repeated-character string for the VB6 String intrinsic.</summary>
     public static string String(int number, object? character)
@@ -1067,13 +1120,28 @@ public static class VBStrings
         (upper is null ? new string(' ', width) : upper.Value.ToString(CultureInfo.InvariantCulture).PadLeft(width));
 
     /// <summary>
-    /// Wie viele Stellen „General Number" zeigt. Dieselbe Trennung, die auch `Debug.Print` und
-    /// `CStr` benutzen: Gleitkomma und Currency mit 15 signifikanten Stellen, der Decimal-Subtyp
-    /// mit 29. Pauschal G29 zeigt für einen Double die Umrechnungsreste — aus 1234.567 wird
-    /// 1234.5670000000000072759576142, was VB6 nie ausgibt.
+    /// „General Number" ist gemessen dasselbe wie <c>CStr</c> -- Zeichen für Zeichen, über alle
+    /// Schwellen und beide Typen.
+    ///
+    /// Das war es vorher nicht: Die Stellenzahl kam aus einem festen G15, also bekam ein Single
+    /// fünfzehn statt sieben Stellen und zeigte seine Umrechnungsreste
+    /// (<c>0,333333343267441</c> statt <c>0,3333333</c>). Ein <c>originalValue is float</c>
+    /// daneben hätte nur die halbe Lücke geschlossen: Die Schwelle zur Exponentialschreibweise ist
+    /// die von .NET ebenfalls nicht. Deshalb entscheidet hier jetzt derselbe Renderer wie bei
+    /// <c>CStr</c>, statt ihn ein zweites Mal nachzubauen.
     /// </summary>
-    private static string GeneralNumberFormat(object? originalValue) =>
-        originalValue is decimal ? "G29" : "G15";
+    private static string? TryGeneralNumber(object? originalValue, VBCompatibilityProfile profile)
+    {
+        var culture = VBNumberText.CultureFor(profile);
+        return originalValue switch
+        {
+            float single => VBNumberText.FromSingle(single, culture),
+            double number => VBNumberText.FromDouble(number, culture),
+            decimal number => VBNumberText.FromDecimal(number, culture),
+            VBCurrency currency => VBNumberText.FromCurrency(currency, culture),
+            _ => null
+        };
+    }
 
     private static string FormatNumber(
         IFormattable number,
@@ -1088,7 +1156,9 @@ public static class VBStrings
                 return boolean ? "True" : "False";
             }
 
-            return number.ToString(GeneralNumberFormat(originalValue), FormatCulture(profile)) ?? string.Empty;
+            return TryGeneralNumber(originalValue, profile)
+                ?? number.ToString("G15", FormatCulture(profile))
+                ?? string.Empty;
         }
 
         var normalizedFormat = format.ToUpperInvariant();
@@ -1103,9 +1173,15 @@ public static class VBStrings
             };
         }
 
+        if (normalizedFormat == "GENERAL NUMBER" &&
+            TryGeneralNumber(originalValue, profile) is { } general)
+        {
+            return general;
+        }
+
         var numericFormat = normalizedFormat switch
         {
-            "GENERAL NUMBER" => GeneralNumberFormat(originalValue),
+            "GENERAL NUMBER" => "G15",
             "CURRENCY" when profile == VBCompatibilityProfile.VB6Sp6 => "C2",
             "CURRENCY" => "$#,##0.00;($#,##0.00)",
             "FIXED" => "0.00",

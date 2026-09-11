@@ -524,36 +524,49 @@ public static class VBConversions
         };
     }
 
-    public static string CStr(object? value)
+    public static string CStr(object? value) => CStr(value, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>
+    /// The VB6 text of a value.
+    ///
+    /// The separator follows the profile, which is the finding behind <c>r1-cstr-locale</c>: the
+    /// original writes <c>CStr(CSng(1) / CSng(3))</c> as <c>0,3333333</c> under a German LCID
+    /// while we wrote <c>0.3333333</c>, and the tempting explanation -- that this is the decided
+    /// profile difference -- was wrong, because <c>Format</c> answered with a comma in the same
+    /// run. <c>CStr</c> simply went past the profile. <c>Str</c> is the one that stays invariant,
+    /// and it does so in the original too.
+    /// </summary>
+    public static string CStr(object? value, VBCompatibilityProfile compatibilityProfile)
     {
         value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfArray(value);
         VBVariants.ThrowIfNull(value);
         VBVariants.ThrowIfMissing(value);
 
+        var culture = VBNumberText.CultureFor(compatibilityProfile);
         return value switch
         {
             VBErrorValue error => $"Error {error.Code}",
             IntPtr pointer => pointer.ToInt64().ToString(CultureInfo.InvariantCulture),
-            VBCurrency currency => currency.ToString(),
+            VBCurrency currency => VBNumberText.FromCurrency(currency, culture),
             // A Date renders as a date, not as its OLE automation serial number - the same
             // General Date form Debug.Print and Print # use, so every text rendering of a Date
             // agrees.
-            VBDateValue date => VBStrings.FormatValue(date, "General Date", 0, 0, VBCompatibilityProfile.Deterministic),
+            VBDateValue date => VBStrings.FormatValue(date, "General Date", 0, 0, compatibilityProfile),
             DateTime date => VBStrings.FormatValue(
                 new VBDateValue(date.ToOADate()),
                 "General Date",
                 0,
                 0,
-                VBCompatibilityProfile.Deterministic),
-            decimal decimalValue => decimalValue.ToString("G29", CultureInfo.InvariantCulture),
+                compatibilityProfile),
+            decimal decimalValue => VBNumberText.FromDecimal(decimalValue, culture),
 
-            // VB6 zeigt einen Double mit 15 und einen Single mit 7 signifikanten Stellen. Die
-            // .NET-Vorgabe ist die kürzeste Zeichenkette, die den Wert exakt zurückliest -- also
-            // bis zu 17 Stellen, in denen die Umrechnungsreste sichtbar werden. Aus CStr(Atn(1)*4)
-            // wurde so 3.141592653589793 statt 3.14159265358979.
-            double doubleValue => doubleValue.ToString("G15", CultureInfo.InvariantCulture),
-            float singleValue => singleValue.ToString("G7", CultureInfo.InvariantCulture),
+            // VB6 zeigt einen Double mit 15 und einen Single mit 7 signifikanten Stellen, und die
+            // Schwelle zur Exponentialschreibweise liegt woanders als bei .NETs G-Spezifizierer.
+            // Beides steckt in VBNumberText; der frueher hier stehende Aufruf von G15/G7 traf die
+            // Stellenzahl und verfehlte die Schwelle.
+            double doubleValue => VBNumberText.FromDouble(doubleValue, culture),
+            float singleValue => VBNumberText.FromSingle(singleValue, culture),
             _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
         };
     }
@@ -638,10 +651,13 @@ public static class VBConversions
         return CBool(value);
     }
 
-    public static string ConvertCStr(object? value)
+    public static string ConvertCStr(object? value) =>
+        ConvertCStr(value, VBCompatibilityProfile.Deterministic);
+
+    public static string ConvertCStr(object? value, VBCompatibilityProfile compatibilityProfile)
     {
         RejectImplicitError(value, nameof(String));
-        return CStr(value);
+        return CStr(value, compatibilityProfile);
     }
 
     private static void RejectImplicitError(object? value, string targetType)
@@ -992,7 +1008,16 @@ public static partial class VBOperators
 
     private static IntPtr FromLongPtr(long value) => new(value);
 
-    public static string Concat(object? left, object? right) => VBConversions.CStr(left) + VBConversions.CStr(right);
+    public static string Concat(object? left, object? right) =>
+        Concat(left, right, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>
+    /// The VB6 concatenation operator, which converts its operands the way <c>CStr</c> does -- and
+    /// therefore under the same profile. Without it a number reaches a Print or a MsgBox with the
+    /// invariant separator even though every other rendering of it follows the system LCID.
+    /// </summary>
+    public static string Concat(object? left, object? right, VBCompatibilityProfile compatibilityProfile) =>
+        VBConversions.CStr(left, compatibilityProfile) + VBConversions.CStr(right, compatibilityProfile);
 
     // Comparison helpers keep scalar comparisons strongly typed at the managed call boundary.
     // The object-based overloads below remain the compatibility path for Variant/object values;
@@ -1024,7 +1049,13 @@ public static partial class VBOperators
             right,
             textCompare ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
 
-    public static object? ConcatVariant(object? left, object? right)
+    public static object? ConcatVariant(object? left, object? right) =>
+        ConcatVariant(left, right, VBCompatibilityProfile.Deterministic);
+
+    public static object? ConcatVariant(
+        object? left,
+        object? right,
+        VBCompatibilityProfile compatibilityProfile)
     {
         left = VBVariantObject.ResolveDefaultValue(left);
         right = VBVariantObject.ResolveDefaultValue(right);
@@ -1038,8 +1069,8 @@ public static partial class VBOperators
             return VBVariants.NullValue();
         }
 
-        return (VBVariants.IsNull(left) ? string.Empty : VBConversions.CStr(left)) +
-            (VBVariants.IsNull(right) ? string.Empty : VBConversions.CStr(right));
+        return (VBVariants.IsNull(left) ? string.Empty : VBConversions.CStr(left, compatibilityProfile)) +
+            (VBVariants.IsNull(right) ? string.Empty : VBConversions.CStr(right, compatibilityProfile));
     }
 
     public static bool Equal(object? left, object? right) => Compare(left, right) == 0;
@@ -1101,7 +1132,14 @@ public static class VBDebug
     /// Formats the scalar values accepted by Debug.Print. VB6 reserves one leading column for the
     /// sign of positive numeric values, while strings, Boolean values and Null are printed as-is.
     /// </summary>
-    public static string Format(object? value)
+    public static string Format(object? value) => Format(value, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>
+    /// The same rendering with a profile. <c>Print</c> follows the system separator in the
+    /// original just as <c>CStr</c> does -- measured on 2026-09-11, <c>Print #f, CSng(1)/CSng(3)</c>
+    /// writes <c>0,3333333</c>.
+    /// </summary>
+    public static string Format(object? value, VBCompatibilityProfile compatibilityProfile)
     {
         value = VBVariantObject.ResolveDefaultValue(value);
         VBVariants.ThrowIfMissing(value);
@@ -1112,6 +1150,7 @@ public static class VBDebug
             return "Null";
         }
 
+        var culture = VBNumberText.CultureFor(compatibilityProfile);
         return value switch
         {
             null => string.Empty,
@@ -1126,16 +1165,14 @@ public static class VBDebug
             uint number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
             ulong number => FormatNumeric(number.ToString(CultureInfo.InvariantCulture)),
             IntPtr pointer => FormatNumeric(pointer.ToInt64().ToString(CultureInfo.InvariantCulture)),
-            // Ein Single trägt sieben signifikante Stellen, ein Double fünfzehn. Beide mit G15
-            // auszugeben zeigt beim Single genau die Stellen, die seine Genauigkeit gar nicht mehr
-            // deckt: Aus 1 / 3 -- in VB6 ein Single, weil beide Operanden Integer sind -- wurde
-            // 0.333333343267441 statt 0.3333333.
-            float number => FormatNumeric(number.ToString("G7", CultureInfo.InvariantCulture)),
-            double number => FormatNumeric(number.ToString("G15", CultureInfo.InvariantCulture)),
-            decimal number => FormatNumeric(number.ToString("G29", CultureInfo.InvariantCulture)),
-            VBCurrency currency => FormatNumeric(currency.ToDecimal().ToString("G15", CultureInfo.InvariantCulture)),
-            VBDateValue date => VBStrings.FormatValue(date, "General Date", 0, 0, VBCompatibilityProfile.Deterministic),
-            _ => VBConversions.CStr(value)
+            // Ein Single trägt sieben signifikante Stellen, ein Double fünfzehn, und die Schwelle
+            // zur Exponentialschreibweise ist nicht die von .NET -- beides in VBNumberText.
+            float number => FormatNumeric(VBNumberText.FromSingle(number, culture)),
+            double number => FormatNumeric(VBNumberText.FromDouble(number, culture)),
+            decimal number => FormatNumeric(VBNumberText.FromDecimal(number, culture)),
+            VBCurrency currency => FormatNumeric(VBNumberText.FromCurrency(currency, culture)),
+            VBDateValue date => VBStrings.FormatValue(date, "General Date", 0, 0, compatibilityProfile),
+            _ => VBConversions.CStr(value, compatibilityProfile)
         };
     }
 
@@ -1168,7 +1205,11 @@ public static class VBDebug
     /// <summary>The current column of the Debug.Print line, used to resolve Tab and Spc.</summary>
     public static int LineLength => _lineLength;
 
-    public static void Print(object? value) => PrintValue(value, endLine: true, separator: 0);
+    public static void Print(object? value) =>
+        PrintValue(value, endLine: true, separator: 0, VBCompatibilityProfile.Deterministic);
+
+    public static void Print(object? value, VBCompatibilityProfile compatibilityProfile) =>
+        PrintValue(value, endLine: true, separator: 0, compatibilityProfile);
 
     /// <summary>
     /// Writes one item of a Debug.Print output list. <paramref name="separator"/> is 0 for the
@@ -1176,7 +1217,15 @@ public static class VBDebug
     /// next print zone. <paramref name="endLine"/> is false while a trailing separator holds the
     /// line open, so the column state carries into the next statement.
     /// </summary>
-    public static void PrintValue(object? value, bool endLine, int separator)
+    public static void PrintValue(object? value, bool endLine, int separator) =>
+        PrintValue(value, endLine, separator, VBCompatibilityProfile.Deterministic);
+
+    /// <summary>The same item, rendered under the caller's compatibility profile.</summary>
+    public static void PrintValue(
+        object? value,
+        bool endLine,
+        int separator,
+        VBCompatibilityProfile compatibilityProfile)
     {
         if (separator is < 0 or > 2)
         {
@@ -1190,7 +1239,7 @@ public static class VBDebug
 
         Write(value is VBPrintPosition position
             ? ResolvePrintPosition(position, _lineLength)
-            : Format(value));
+            : Format(value, compatibilityProfile));
         if (endLine)
         {
             Console.WriteLine();
