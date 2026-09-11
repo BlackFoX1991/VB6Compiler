@@ -42,18 +42,36 @@ public sealed class CompatibilityMatrixTests
         Assert.AreEqual(0, unresolved.Count, string.Join(Environment.NewLine, unresolved));
     }
 
+    /// <summary>
+    /// The successor of <c>Matrix_KeepsOracleVerificationEmptyUntilThereIsAnOracle</c>.
+    ///
+    /// That case held the axis at zero and said so in as many words: a future non-zero has to be
+    /// argued for by deleting the assertion rather than by editing a number. The argument arrived
+    /// on 2026-09-10 with a real VB6 SP6 and a harness that runs inside the suite, so the guard
+    /// changes from "never" to "only with a case behind it": an expectation may claim
+    /// <c>oracle-verified</c> only while it names a file in
+    /// <c>tests/VB6.Compiler.Tests/Oracle*Tests.cs</c>, which is where a comparison against the
+    /// original can live at all.
+    ///
+    /// That is the mechanisable half of the roadmap's rule. The other half -- that the case covers
+    /// the expectation's **whole** surface and passes without a remainder -- stays a judgement, and
+    /// a run with a known remainder keeps the expectation <c>documented-verified</c> with its rest
+    /// as a card.
+    /// </summary>
     [TestMethod]
-    public void Matrix_KeepsOracleVerificationEmptyUntilThereIsAnOracle()
+    public void Matrix_BacksEveryOracleVerificationWithAnOracleCase()
     {
-        var claimed = CompatibilityMatrix.LoadExpectations()
+        var unbacked = CompatibilityMatrix.LoadExpectations()
             .Where(expectation => expectation.Verification == "oracle-verified")
+            .Where(expectation => !expectation.TestRefs.Any(reference =>
+                reference.StartsWith("tests/VB6.Compiler.Tests/Oracle", StringComparison.Ordinal)))
             .Select(expectation => expectation.Id)
             .ToArray();
 
         Assert.AreEqual(
             0,
-            claimed.Length,
-            "oracle-verified darf nur nach einem echten VB6-SP6-Lauf stehen: " + string.Join(", ", claimed));
+            unbacked.Length,
+            "oracle-verified ohne Orakelfall in den testRefs: " + string.Join(", ", unbacked));
     }
 
     [TestMethod]
@@ -67,13 +85,14 @@ public sealed class CompatibilityMatrixTests
         var planned = expectations.Count(expectation => expectation.Implementation == "planned");
         var documented = expectations.Count(expectation => expectation.Verification == "documented-verified");
         var notYetVerified = expectations.Count(expectation => expectation.Verification == "not-yet-verified");
+        var oracleVerified = expectations.Count(expectation => expectation.Verification == "oracle-verified");
         var total = expectations.Count;
 
         Assert.AreEqual(total, implemented + partial + planned, "Statusachse implementation unvollständig.");
         Assert.AreEqual(
             total,
-            documented + notYetVerified,
-            "Statusachse verification unvollständig -- oder es steht ein dritter Wert in der Datei.");
+            documented + notYetVerified + oracleVerified,
+            "Statusachse verification unvollständig -- oder es steht ein vierter Wert in der Datei.");
 
         // Die Zahlen stehen an vier Stellen in der Dokumentation. Wandern sie auseinander, ist die
         // Matrix nicht mehr die Quelle -- und genau das soll auffallen.
@@ -96,7 +115,7 @@ public sealed class CompatibilityMatrixTests
             "CLAUDE.md");
         StringAssert.Contains(
             instructions,
-            $"{documented} `documented-verified`, {notYetVerified} `not-yet-verified`, 0 `oracle-verified`",
+            $"{documented} `documented-verified`, {notYetVerified} `not-yet-verified`, {oracleVerified} `oracle-verified`",
             "CLAUDE.md");
     }
 
