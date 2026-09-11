@@ -2187,7 +2187,14 @@ public sealed class ManagedEmitter
                      IrRuntimeMethod.FileInputB or
                      IrRuntimeMethod.FileGetString or
                      IrRuntimeMethod.FileGetFixedString or
-                     IrRuntimeMethod.FilePutFixedString)
+                     IrRuntimeMethod.FilePutFixedString or
+                     IrRuntimeMethod.CStr or
+                     IrRuntimeMethod.ConvertCStr or
+                     IrRuntimeMethod.StringStr or
+                     IrRuntimeMethod.DebugPrint or
+                     IrRuntimeMethod.DebugPrintValue or
+                     IrRuntimeMethod.Concat or
+                     IrRuntimeMethod.ConcatVariant)
             {
                 encoder.LoadConstantI4((int)_program.CompatibilityProfile);
             }
@@ -6351,13 +6358,14 @@ public sealed class ManagedEmitter
         {
             skippedArgument = -1;
             var m = call.Method;
-            if (m == IrRuntimeMethod.DebugPrint) return Static(typeof(VBDebug), "Print", typeof(object));
+            if (m == IrRuntimeMethod.DebugPrint) return Static(typeof(VBDebug), "Print", typeof(object), typeof(VBCompatibilityProfile));
             if (m == IrRuntimeMethod.DebugPrintValue) return Static(
                 typeof(VBDebug),
                 nameof(VBDebug.PrintValue),
                 typeof(object),
                 typeof(bool),
-                typeof(int));
+                typeof(int),
+                typeof(VBCompatibilityProfile));
             if (m == IrRuntimeMethod.DebugPrintEmptyLine) return Static(
                 typeof(VBDebug),
                 nameof(VBDebug.PrintEmptyLine));
@@ -6467,7 +6475,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.CSng) return Static(typeof(VBConversions), "CSng", typeof(object));
             if (m == IrRuntimeMethod.CDbl) return Static(typeof(VBConversions), "CDbl", typeof(object));
             if (m == IrRuntimeMethod.CBool) return Static(typeof(VBConversions), "CBool", typeof(object));
-            if (m == IrRuntimeMethod.CStr) return Static(typeof(VBConversions), "CStr", typeof(object));
+            if (m == IrRuntimeMethod.CStr) return Static(typeof(VBConversions), "CStr", typeof(object), typeof(VBCompatibilityProfile));
             if (m == IrRuntimeMethod.CVar) return Static(typeof(VBConversions), "CVar", typeof(object));
             if (m == IrRuntimeMethod.CVErr) return Static(typeof(VBConversions), "CVErr", typeof(object));
             if (m == IrRuntimeMethod.ConvertCByte) return Static(typeof(VBConversions), "ConvertCByte", typeof(object));
@@ -6483,7 +6491,7 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.ConvertCSng) return Static(typeof(VBConversions), "ConvertCSng", typeof(object));
             if (m == IrRuntimeMethod.ConvertCDbl) return Static(typeof(VBConversions), "ConvertCDbl", typeof(object));
             if (m == IrRuntimeMethod.ConvertCBool) return Static(typeof(VBConversions), "ConvertCBool", typeof(object));
-            if (m == IrRuntimeMethod.ConvertCStr) return Static(typeof(VBConversions), "ConvertCStr", typeof(object));
+            if (m == IrRuntimeMethod.ConvertCStr) return Static(typeof(VBConversions), "ConvertCStr", typeof(object), typeof(VBCompatibilityProfile));
             if (m == IrRuntimeMethod.VariantToBoolean) return Static(typeof(VBVariants), "ToBoolean", typeof(object));
             if (m == IrRuntimeMethod.StringLike) return Static(typeof(VBStrings), nameof(VBStrings.Like), typeof(object), typeof(object), typeof(bool));
             if (m == IrRuntimeMethod.ObjectIs) return Static(typeof(VBObjectIdentity), nameof(VBObjectIdentity.IsSame), typeof(object), typeof(object));
@@ -6658,10 +6666,12 @@ public sealed class ManagedEmitter
             if (m == IrRuntimeMethod.ObjectToVariant) return Static(typeof(VBVariants), nameof(VBVariants.ObjectToVariant), typeof(object));
             if (m == IrRuntimeMethod.ArrayRequireAllocated) return Static(typeof(VBArrayOperations), nameof(VBArrayOperations.RequireAllocated), typeof(object));
 
-            if (m is IrRuntimeMethod.Equal or IrRuntimeMethod.NotEqual or IrRuntimeMethod.Less or IrRuntimeMethod.LessOrEqual or IrRuntimeMethod.Greater or IrRuntimeMethod.GreaterOrEqual or IrRuntimeMethod.Concat)
+            if (m is IrRuntimeMethod.Equal or IrRuntimeMethod.NotEqual or IrRuntimeMethod.Less or IrRuntimeMethod.LessOrEqual or IrRuntimeMethod.Greater or IrRuntimeMethod.GreaterOrEqual)
                 return Static(typeof(VBOperators), RuntimeName(m), typeof(object), typeof(object));
-            if (m == IrRuntimeMethod.ConcatVariant)
-                return Static(typeof(VBOperators), "ConcatVariant", typeof(object), typeof(object));
+
+            // Die Verkettung wandelt ihre Operanden wie CStr und folgt deshalb demselben Profil.
+            if (m is IrRuntimeMethod.Concat or IrRuntimeMethod.ConcatVariant)
+                return Static(typeof(VBOperators), RuntimeName(m), typeof(object), typeof(object), typeof(VBCompatibilityProfile));
             if (m is IrRuntimeMethod.VariantEqual or IrRuntimeMethod.VariantNotEqual or
                 IrRuntimeMethod.VariantLess or IrRuntimeMethod.VariantLessOrEqual or
                 IrRuntimeMethod.VariantGreater or IrRuntimeMethod.VariantGreaterOrEqual)
@@ -6720,7 +6730,7 @@ public sealed class ManagedEmitter
                 if (name == "Val") return Static(typeof(VBStrings), name, typeof(string));
                 if (name == "Hex") return Static(typeof(VBStrings), name, typeof(object));
                 if (name == "Oct") return Static(typeof(VBStrings), name, typeof(object));
-                if (name == "Str") return Static(typeof(VBStrings), name, typeof(object));
+                if (name == "Str") return Static(typeof(VBStrings), name, typeof(object), typeof(VBCompatibilityProfile));
                 if (name == "Repeat") return Static(typeof(VBStrings), "String", typeof(int), typeof(object));
                 if (name == "Format") return Static(typeof(VBStrings), nameof(VBStrings.FormatValue), typeof(object), typeof(string), typeof(int), typeof(int), typeof(VBCompatibilityProfile));
                 if (name == "StrReverse") return Static(typeof(VBStrings), name, typeof(string));
