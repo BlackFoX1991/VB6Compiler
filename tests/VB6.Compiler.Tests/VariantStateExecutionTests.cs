@@ -74,20 +74,33 @@ public sealed class VariantStateExecutionTests
             output);
     }
 
+    /// <summary>
+    /// The name of this case used to be <c>...DivisionToSingle</c>, and it asserted exactly the
+    /// defect that <c>r1-division-result-type</c> closed. Measured against VB6 SP6 on 2026-09-10:
+    /// a Variant holding an Integer divided by an Integer is a <c>Double</c>. The Single only
+    /// appears when a real Single is on one side -- which the second half of this case now shows,
+    /// because it is the distinction the old single-line assertion could not make.
+    /// </summary>
     [TestMethod]
-    public void EmitManagedApplication_PromotesIntegerVariantDivisionToSingle()
+    public void EmitManagedApplication_DividesAnIntegerVariantInDoubleUnlessASingleIsInvolved()
     {
         var output = VB6TestProgram.RunLines("""
             Sub Main()
                 Dim value As Variant
+                Dim wide As Variant
                 value = CInt(5)
+                wide = CDbl(5)
 
                 Debug.Print TypeName(value / CInt(2))
                 Debug.Print value / CInt(2)
+                Debug.Print TypeName(value / CSng(2))
+                Debug.Print TypeName(wide / CSng(2))
             End Sub
             """);
 
-        CollectionAssert.AreEqual(new[] { "Single", "2.5" }, output);
+        CollectionAssert.AreEqual(
+            new[] { "Double", "2.5", "Single", "Double" },
+            output);
     }
 
     [TestMethod]

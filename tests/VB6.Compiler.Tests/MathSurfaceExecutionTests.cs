@@ -57,21 +57,37 @@ public sealed class MathSurfaceExecutionTests
         CollectionAssert.AreEqual(new[] { "5", "5", "11" }, output);
     }
 
+    /// <summary>
+    /// The G7/G15 staging, with the example it used to carry corrected.
+    ///
+    /// <c>1 / 3</c> stood here as "a Single, because both operands are Integer", and the original
+    /// falsified exactly that on 2026-09-10: <c>/</c> computes in Double unless a Single is on one
+    /// side. The staging itself is unchanged and still right -- a Single carries seven significant
+    /// digits and printing fifteen of them shows its conversion residue as if it were a value --
+    /// only its example was wrong. So the case now asks a real Single for it.
+    /// </summary>
     [TestMethod]
     public void EmitManagedApplication_ShowsSevenDigitsForSingleAndFifteenForDouble()
     {
         var output = VB6TestProgram.RunLines("""
             Sub Main()
                 Dim d As Double
+                Dim s As Single
+                Dim genau As Double
+
                 d = Atn(1) * 4
                 Debug.Print d
                 Debug.Print CStr(d)
 
-                ' 1 / 3 ist in VB6 ein Single: beide Operanden sind Integer.
+                ' Beide Operanden Integer heisst Double -- am Original gemessen.
                 Debug.Print 1 / 3
                 Debug.Print CStr(1 / 3)
 
-                Dim genau As Double
+                ' Ein echter Single auf einer Seite ist die Ausnahme, und nur er zeigt G7.
+                s = 1
+                Debug.Print s / 3
+                Debug.Print CStr(s / 3)
+
                 genau = 1
                 genau = genau / 3
                 Debug.Print genau
@@ -83,6 +99,8 @@ public sealed class MathSurfaceExecutionTests
             {
                 "3.14159265358979",
                 "3.14159265358979",
+                "0.333333333333333",
+                "0.333333333333333",
                 "0.3333333",
                 "0.3333333",
                 "0.333333333333333"

@@ -317,7 +317,11 @@ public sealed class VariantConcatenationExecutionTests
                 "3", "-32769", "3", "90000", "3", "5",
                 "4", "3.5", "5", "3.5", "6", "5",
                 "5", "3.5", "14", "5", "5", "8",
-                "5", "8", "4", "3.5", "5", "3.5",
+                // Der dritte Wert dieser Zeile ist CInt(7) / CInt(2) ueber Variants. Er stand auf
+                // 4 (vbSingle) und ist am 2026-09-10 am Original als 5 (vbDouble) gemessen
+                // worden -- r1-division-result-type. Der Wert 3.5 ist in beiden Typen exakt,
+                // weshalb allein der Subtyp den Defekt zeigte.
+                "5", "8", "5", "3.5", "5", "3.5",
                 "2", "3", "3", "4", "2", "1",
                 "5", "1024", "2", "-2", "2", "2"
             },
